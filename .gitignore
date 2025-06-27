@@ -1,0 +1,38 @@
+# 1. Python 相關快取與日誌
+__pycache__/
+*.py[cod]
+*.pyo
+*.log
+
+# 2. MLflow 實驗追蹤目錄
+mlruns/
+
+# 3. model 目錄：只放行 .py
+model/*
+!model/*.py
+
+# 4. 資料前處理目錄：只放行 .py
+data_preprocess/*
+!data_preprocess/*.py
+
+# 5. data 目錄下的快取
+data/*
+!data/*.py
+
+# 6. model_performance_analysis 目錄：只放行 .py
+model_performance_analysis/*
+!model_performance_analysis/*.py
+
+# 7. model_train_predict 目錄：只放行 .py
+model_train_predict/*
+!model_train_predict/*.py
+
+# 8. predict 目錄整包忽略
+predict/
+
+# 9. 系統產生的隱藏檔
+.DS_Store
+Thumbs.db
+
+# 10. VSCode 設定
+.vscode/
