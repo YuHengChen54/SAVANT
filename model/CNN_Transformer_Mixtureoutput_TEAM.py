@@ -96,7 +96,7 @@ class CNN(nn.Module):  # input_shape -> BatchSize, Channels, Height, Width
         )
 
         self.conv2d2 = nn.Sequential(
-            nn.Conv2d(8, 32, kernel_size=(16, 3), stride=(1, 3)), nn.ReLU()
+            nn.Conv2d(8, 32, kernel_size=(16, 1), stride=(1, 1)), nn.ReLU()
         )
 
         self.conv1d1 = nn.Sequential(nn.Conv1d(32, 64, kernel_size=16), nn.ReLU())
@@ -516,7 +516,7 @@ class full_model(nn.Module):
 
     def forward(self, data):
         CNN_output = self.model_CNN(
-            torch.DoubleTensor(data["waveform"].reshape(-1, self.data_length, 9))
+            torch.DoubleTensor(data["waveform"].reshape(-1, self.data_length, 3))
             .float()
             .cuda()
         )

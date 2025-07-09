@@ -213,7 +213,7 @@ def train_process(
                 print("trigger 0 time")
                 trigger_times = 0
                 path = "../model"
-                model_file = f"{path}/model{hyper_param['model_index']}_vel.pt"
+                model_file = f"{path}/model{hyper_param['model_index']}_acc.pt"
                 torch.save(full_Model.state_dict(), model_file)
                 log_artifact(model_file)
 
@@ -227,12 +227,12 @@ def train_process(
 
 if __name__ == "__main__":
     train_data_size = 0.8
-    model_index = 20
+    model_index = 4
     num_epochs = 300
     # batch_size=16
     for batch_size in [16]:
         for LR in [2.5e-5]:
-            for i in range(3):  # 原本是3
+            for i in range(6):  # 原本是3
                 model_index += 1
                 hyper_param = {
                     "model_index": model_index,
@@ -280,8 +280,8 @@ if __name__ == "__main__":
                     test_year=2016,
                     mask_waveform_random=True,
                     mag_threshold=0,
-                    label_key="pgv",
-                    input_type="vel",
+                    label_key="pga",
+                    input_type="acc",
                     data_length_sec=20,
                     station_blind=True,
                     bias_to_closer_station=True,
@@ -291,6 +291,6 @@ if __name__ == "__main__":
                     full_data,
                     optimizer,
                     hyper_param,
-                    experiment_name="SAVANT First Train",
-                    run_name=f"7th Train combined Acc and Vel and LowFreq. 20250623",
+                    experiment_name="SAVANT ACC Train",
+                    run_name=f"3rd Train Acc 20250707",
                 )

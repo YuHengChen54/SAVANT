@@ -10,6 +10,7 @@ mlruns/
 # 3. model 目錄：只放行 .py
 model/*
 !model/*.py
+model_acc/*
 
 # 4. 資料前處理目錄：只放行 .py
 data_preprocess/*

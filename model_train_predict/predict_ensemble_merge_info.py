@@ -36,7 +36,7 @@ for mask_sec in [3, 5, 7, 10, 13, 15]:
     )
     # ===========predict==============
     device = torch.device("cuda")
-    for num in [21, 22, 23]:  
+    for num in [27, 28, 29]:  
         path = f"../model/model{num}_vel.pt"
         # path = "../model/model19_checkpoints/epoch70_model.pt"
         emb_dim = 150
