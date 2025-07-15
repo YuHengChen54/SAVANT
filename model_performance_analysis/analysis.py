@@ -404,14 +404,16 @@ class Intensity_Plotter:
         intensity = TaiwanIntensity()
         if target == "pga":
             intensity_threshold = intensity.pga
+            intensity_threshold[0] = np.log10(0.008)
             ticks = intensity.pga_ticks
         elif target == "pgv":
             intensity_threshold = intensity.pgv
+            intensity_threshold[0] = np.log10(0.002) - (np.log10(0.002) + 5) / 2
             ticks = intensity.pgv_ticks
 
         labels = intensity.label
         
-        intensity_threshold[0] = np.log10(0.002) - (np.log10(0.002) + 5) / 2
+        
 
         limits = (intensity_threshold[0], intensity_threshold[-1])
 
@@ -496,8 +498,8 @@ class Intensity_Plotter:
         else:
             ax.set_title(title, fontsize=axis_fontsize + 5, pad=40)
 
-        ax.set_xlabel(r"True PGV (${m/s}$)", fontsize=axis_fontsize)
-        ax.set_ylabel(r"Predicted PGV (${m/s}$)", fontsize=axis_fontsize)
+        ax.set_xlabel(r"True PGA (${m/s^2}$)", fontsize=axis_fontsize)
+        ax.set_ylabel(r"Predicted PGA (${m/s^2}$)", fontsize=axis_fontsize)
 
         return fig, ax
 

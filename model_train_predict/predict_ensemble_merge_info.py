@@ -23,21 +23,21 @@ from model_performance_analysis.analysis import Intensity_Plotter
 
 for mask_sec in [3, 5, 7, 10, 13, 15]:
     mask_after_sec = mask_sec
-    label = "pgv"
+    label = "pga"
     data = multiple_station_dataset(
-        "../../../TT-SAM-Velocity-PGV/code/data/TSMIP_1999_2019_Vs30_integral.hdf5",
+        "../../../TT-SAM/code/data/TSMIP_1999_2019_Vs30_integral.hdf5",
         mode="test",
         mask_waveform_sec=mask_after_sec,
         test_year=2016,
         label_key=label,
         mag_threshold=0,
-        input_type="vel",
+        input_type="acc",
         data_length_sec=20,
     )
     # ===========predict==============
     device = torch.device("cuda")
-    for num in [27, 28, 29]:  
-        path = f"../model/model{num}_vel.pt"
+    for num in [11, 12, 13, 14, 15, 16, 17, 18, 19]:  
+        path = f"../model_acc/model{num}_acc.pt"
         # path = "../model/model19_checkpoints/epoch70_model.pt"
         emb_dim = 150
         mlp_dims = (150, 100, 50, 30, 10)
@@ -127,7 +127,7 @@ for mask_sec in [3, 5, 7, 10, 13, 15]:
             agg="point",
             point_size=12,
             target=label,
-            title=f"{mask_after_sec}s True Predict Plot, 2016 data model {num}"
+            title=f"{mask_after_sec}s True Predict Plot, 2016 data model {num} ACC"
         )
 
         # 用震度4分割畫不同顏色
@@ -177,7 +177,7 @@ for mask_sec in [3, 5, 7, 10, 13, 15]:
         #     fontsize=20,
         # )
 
-        fig.savefig(f"../predict/model {num} {mask_after_sec} sec_vel.png")
+        fig.savefig(f"../predict_acc/model {num} {mask_after_sec} sec_acc.png")
 
     # # ===========merge info==============
     # num = 9

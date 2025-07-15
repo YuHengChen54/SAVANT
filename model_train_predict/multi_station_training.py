@@ -171,7 +171,7 @@ def train_process(
             # checkpoint
             if train_loss.data < -1 and (epoch + 1) % 5 == 0:
                 checkpoint_path = (
-                    f"../model/model{hyper_param['model_index']}_checkpoints"
+                    f"../model_acc/model{hyper_param['model_index']}_checkpoints"
                 )
                 if not os.path.exists(checkpoint_path):
                     os.makedirs(checkpoint_path)
@@ -189,7 +189,7 @@ def train_process(
 
                 if trigger_times >= patience:
                     # 往前縮排測試
-                    path = "../model"
+                    path = "../model_acc"
                     # if epoch+1 == hyper_param["num_epochs"]:
                     print(f"Early stopping! stop at epoch: {epoch+1}")
                     with open(
@@ -212,7 +212,7 @@ def train_process(
             else:
                 print("trigger 0 time")
                 trigger_times = 0
-                path = "../model"
+                path = "../model_acc"
                 model_file = f"{path}/model{hyper_param['model_index']}_acc.pt"
                 torch.save(full_Model.state_dict(), model_file)
                 log_artifact(model_file)
@@ -227,12 +227,12 @@ def train_process(
 
 if __name__ == "__main__":
     train_data_size = 0.8
-    model_index = 4
+    model_index = 16
     num_epochs = 300
     # batch_size=16
     for batch_size in [16]:
         for LR in [2.5e-5]:
-            for i in range(6):  # 原本是3
+            for i in range(3):  # 原本是3
                 model_index += 1
                 hyper_param = {
                     "model_index": model_index,
@@ -271,7 +271,7 @@ if __name__ == "__main__":
                     lr=LR,
                 )
                 full_data = multiple_station_dataset(
-                    "../../../TT-SAM-Velocity-PGV/code/data/TSMIP_1999_2019_Vs30_integral.hdf5",
+                    "../../../TT-SAM/code/data/TSMIP_1999_2019_Vs30_integral.hdf5",
                     mode="train",
                     mask_waveform_sec=3,
                     weight_label=False,
@@ -292,5 +292,5 @@ if __name__ == "__main__":
                     optimizer,
                     hyper_param,
                     experiment_name="SAVANT ACC Train",
-                    run_name=f"3rd Train Acc 20250707",
+                    run_name=f"6th_Train_Acc: model 17-19 | input:acc & vel | 20250714",
                 )

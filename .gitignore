@@ -30,6 +30,7 @@ model_train_predict/*
 
 # 8. predict 目錄整包忽略
 predict/
+predict_acc/
 
 # 9. 系統產生的隱藏檔
 .DS_Store
