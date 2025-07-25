@@ -474,9 +474,24 @@ class TransformerEncoder(nn.Module):
         return out
 
 
-class MDN(nn.Module):
+class MDN_PGA(nn.Module):
     def __init__(self, input_shape=(150,), n_hidden=20, n_gaussians=5):
-        super(MDN, self).__init__()
+        super(MDN_PGA, self).__init__()
+        self.z_h = nn.Sequential(nn.Linear(input_shape[0], n_hidden), nn.Tanh())
+        self.z_weight = nn.Linear(n_hidden, n_gaussians)
+        self.z_sigma = nn.Linear(n_hidden, n_gaussians)
+        self.z_mu = nn.Linear(n_hidden, n_gaussians)
+
+    def forward(self, x):
+        z_h = self.z_h(x)
+        weight = nn.functional.softmax(self.z_weight(z_h), -1)
+        sigma = torch.exp(self.z_sigma(z_h))
+        mu = self.z_mu(z_h)
+        return weight, sigma, mu
+
+class MDN_PGV(nn.Module):
+    def __init__(self, input_shape=(150,), n_hidden=20, n_gaussians=5):
+        super(MDN_PGV, self).__init__()
         self.z_h = nn.Sequential(nn.Linear(input_shape[0], n_hidden), nn.Tanh())
         self.z_weight = nn.Linear(n_hidden, n_gaussians)
         self.z_sigma = nn.Linear(n_hidden, n_gaussians)
@@ -490,6 +505,81 @@ class MDN(nn.Module):
         return weight, sigma, mu
 
 
+class MLP_output_pga(nn.Module):
+    def __init__(
+        self,
+        input_shape,
+        dims=(500, 300, 200, 150),
+        activation=nn.ReLU(),
+        last_activation=None,
+    ):
+        super(MLP_output_pga, self).__init__()
+        if last_activation is None:
+            last_activation = activation
+        self.dims = dims
+        self.first_fc = nn.Linear(input_shape[0], dims[0])
+        self.first_activation = activation
+
+        more_hidden = []
+        if len(self.dims) > 2:
+            for index in range(1, len(self.dims) - 1):
+                more_hidden.append(nn.Linear(self.dims[index - 1], self.dims[index]))
+                # more_hidden.append(activation)
+                more_hidden.append(nn.ReLU())
+
+        self.more_hidden = nn.ModuleList(more_hidden)
+
+        self.last_fc = nn.Linear(dims[-2], dims[-1])
+        self.last_activation = last_activation
+
+    def forward(self, x):
+        output = self.first_fc(x)
+        output = self.first_activation(output)
+        if self.more_hidden:
+            for layer in self.more_hidden:
+                output = layer(output)
+        output = self.last_fc(output)
+        output = self.last_activation(output)
+        return output
+    
+class MLP_output_pgv(nn.Module):
+    def __init__(
+        self,
+        input_shape,
+        dims=(500, 300, 200, 150),
+        activation=nn.ReLU(),
+        last_activation=None,
+    ):
+        super(MLP_output_pgv, self).__init__()
+        if last_activation is None:
+            last_activation = activation
+        self.dims = dims
+        self.first_fc = nn.Linear(input_shape[0], dims[0])
+        self.first_activation = activation
+
+        more_hidden = []
+        if len(self.dims) > 2:
+            for index in range(1, len(self.dims) - 1):
+                more_hidden.append(nn.Linear(self.dims[index - 1], self.dims[index]))
+                # more_hidden.append(activation)
+                more_hidden.append(nn.ReLU())
+
+        self.more_hidden = nn.ModuleList(more_hidden)
+
+        self.last_fc = nn.Linear(dims[-2], dims[-1])
+        self.last_activation = last_activation
+
+    def forward(self, x):
+        output = self.first_fc(x)
+        output = self.first_activation(output)
+        if self.more_hidden:
+            for layer in self.more_hidden:
+                output = layer(output)
+        output = self.last_fc(output)
+        output = self.last_activation(output)
+        return output
+
+
 class full_model(nn.Module):
     def __init__(
         self,
@@ -497,7 +587,10 @@ class full_model(nn.Module):
         model_Position,
         model_Transformer,
         model_mlp,
-        model_MDN,
+        model_mlp_output_pga,
+        model_mlp_output_pgv,
+        model_MDN_PGA,
+        model_MDN_PGV,
         max_station=25,
         pga_targets=15,
         emb_dim=150,
@@ -509,7 +602,10 @@ class full_model(nn.Module):
         self.model_Position = model_Position
         self.model_Transformer = model_Transformer
         self.model_mlp = model_mlp
-        self.model_MDN = model_MDN
+        self.model_mlp_output_pga = model_mlp_output_pga
+        self.model_mlp_output_pgv = model_mlp_output_pgv
+        self.model_MDN_PGA = model_MDN_PGA
+        self.model_MDN_PGV = model_MDN_PGV
         self.max_station = max_station
         self.pga_targets = pga_targets
         self.emb_dim = emb_dim
@@ -555,11 +651,13 @@ class full_model(nn.Module):
 
         mlp_input = transformer_output[:, -self.pga_targets :, :].cuda()
 
-        mlp_output = self.model_mlp(mlp_input)
+        mlp_output_pga_value = self.model_mlp_output_pga(mlp_input)
+        mlp_output_pgv_value = self.model_mlp_output_pgv(mlp_input)
 
-        weight, sigma, mu = self.model_MDN(mlp_output)
+        weight_pga, sigma_pga, mu_pga = self.model_MDN_PGA(mlp_output_pga_value)
+        weight_pgv, sigma_pgv, mu_pgv = self.model_MDN_PGV(mlp_output_pgv_value)
 
-        return weight, sigma, mu
+        return weight_pga, sigma_pga, mu_pga, weight_pgv, sigma_pgv, mu_pgv
 
 
 def gaussian_distribution(y, mu, sigma):

@@ -498,8 +498,12 @@ class Intensity_Plotter:
         else:
             ax.set_title(title, fontsize=axis_fontsize + 5, pad=40)
 
-        ax.set_xlabel(r"True PGA (${m/s^2}$)", fontsize=axis_fontsize)
-        ax.set_ylabel(r"Predicted PGA (${m/s^2}$)", fontsize=axis_fontsize)
+        if target == "pga":
+            ax.set_xlabel(r"True PGA (${m/s^2}$)", fontsize=axis_fontsize)
+            ax.set_ylabel(r"Predicted PGA (${m/s^2}$)", fontsize=axis_fontsize)
+        if target == "pgv":
+            ax.set_xlabel(r"True PGV (${m/s}$)", fontsize=axis_fontsize)
+            ax.set_ylabel(r"Predicted PGV (${m/s}$)", fontsize=axis_fontsize)
 
         return fig, ax
 

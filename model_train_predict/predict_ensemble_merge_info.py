@@ -1,3 +1,4 @@
+import os
 import h5py
 import matplotlib.pyplot as plt
 
@@ -12,7 +13,10 @@ import sys
 sys.path.append("..")
 from model.CNN_Transformer_Mixtureoutput_TEAM import (
     CNN,
-    MDN,
+    MDN_PGA,
+    MDN_PGV,
+    MLP_output_pga,
+    MLP_output_pgv,
     MLP,
     PositionEmbedding_Vs30,
     TransformerEncoder,
@@ -23,161 +27,143 @@ from model_performance_analysis.analysis import Intensity_Plotter
 
 for mask_sec in [3, 5, 7, 10, 13, 15]:
     mask_after_sec = mask_sec
-    label = "pga"
+    # label = "pga"
+    # dual-target: no single label variable
     data = multiple_station_dataset(
         "../../../TT-SAM/code/data/TSMIP_1999_2019_Vs30_integral.hdf5",
         mode="test",
         mask_waveform_sec=mask_after_sec,
         test_year=2016,
-        label_key=label,
+        # label_key=label,
+        # use default label_keys=["pga","pgv"]
         mag_threshold=0,
         input_type="acc",
         data_length_sec=20,
     )
     # ===========predict==============
     device = torch.device("cuda")
-    for num in [11, 12, 13, 14, 15, 16, 17, 18, 19]:  
-        path = f"../model_acc/model{num}_acc.pt"
-        # path = "../model/model19_checkpoints/epoch70_model.pt"
+    for num in [58]:
+    # for num in range(54, 58):  
+        path = f"../model_pga_pgv/model{num}_pga_pgv.pt"
         emb_dim = 150
         mlp_dims = (150, 100, 50, 30, 10)
         CNN_model = CNN(downsample=3, mlp_input=7665).cuda()
         pos_emb_model = PositionEmbedding_Vs30(emb_dim=emb_dim).cuda()
         transformer_model = TransformerEncoder()
         mlp_model = MLP(input_shape=(emb_dim,), dims=mlp_dims).cuda()
-        mdn_model = MDN(input_shape=(mlp_dims[-1],)).cuda()
+        mlp_output_pga = MLP_output_pga(input_shape=(emb_dim,), dims=mlp_dims).cuda()
+        mlp_output_pgv = MLP_output_pgv(input_shape=(emb_dim,), dims=mlp_dims).cuda()
+        mdn_pga_model = MDN_PGA(input_shape=(mlp_dims[-1],)).cuda()
+        mdn_pgv_model = MDN_PGV(input_shape=(mlp_dims[-1],)).cuda()
         full_Model = full_model(
             CNN_model,
             pos_emb_model,
             transformer_model,
             mlp_model,
-            mdn_model,
+            mlp_output_pga,
+            mlp_output_pgv,
+            mdn_pga_model,
+            mdn_pgv_model,
             pga_targets=25,
             data_length=4000,
         ).to(device)
         full_Model.load_state_dict(torch.load(path))
         loader = DataLoader(dataset=data, batch_size=1)
 
-        Mixture_mu = []
-        Label = []
+        Mixture_mu_pga = []
+        Mixture_mu_pgv = []
+        Label_pga = []
+        Label_pgv = []
         P_picks = []
         EQ_ID = []
-        Label_time = []
+        # we can record both label times if needed
+        Pga_time = []
+        Pgv_time = []
         Sta_name = []
         Lat = []
         Lon = []
         Elev = []
         for j, sample in tqdm(enumerate(loader)):
+            # metadata
             picks = sample["p_picks"].flatten().numpy().tolist()
-            label_time = sample[f"{label}_time"].flatten().numpy().tolist()
+            P_picks.extend(picks)
+            P_picks.extend([np.nan] * (25 - len(picks)))
             lat = sample["target"][:, :, 0].flatten().tolist()
             lon = sample["target"][:, :, 1].flatten().tolist()
             elev = sample["target"][:, :, 2].flatten().tolist()
-            P_picks.extend(picks)
-            P_picks.extend([np.nan] * (25 - len(picks)))
-            Label_time.extend(label_time)
-            Label_time.extend([np.nan] * (25 - len(label_time)))
-            Lat.extend(lat)
-            Lon.extend(lon)
-            Elev.extend(elev)
-
+            Lat.extend(lat); Lon.extend(lon); Elev.extend(elev)
             eq_id = sample["EQ_ID"][:, :, 0].flatten().numpy().tolist()
-            EQ_ID.extend(eq_id)
-            EQ_ID.extend([np.nan] * (25 - len(eq_id)))
-            weight, sigma, mu = full_Model(sample)
+            EQ_ID.extend(eq_id); EQ_ID.extend([np.nan] * (25 - len(eq_id)))
 
-            weight = weight.cpu()
-            sigma = sigma.cpu()
-            mu = mu.cpu()
+            # model outputs: dual heads
+            w_pga, s_pga, m_pga, w_pgv, s_pgv, m_pgv = full_Model(sample)
+            w_pga, s_pga, m_pga = w_pga.cpu(), s_pga.cpu(), m_pga.cpu()
+            w_pgv, s_pgv, m_pgv = w_pgv.cpu(), s_pgv.cpu(), m_pgv.cpu()
+            # mixture means
+            pga_pred = torch.sum(w_pga * m_pga, dim=2).detach().numpy()
+            pgv_pred = torch.sum(w_pgv * m_pgv, dim=2).detach().numpy()
+            # ground truth labelsf
+            label_pga = sample['label_pga'].cpu().detach().numpy()
+            label_pgv = sample['label_pgv'].cpu().detach().numpy()
             if j == 0:
-                Mixture_mu = torch.sum(weight * mu, dim=2).cpu().detach().numpy()
-                Label = sample["label"].cpu().detach().numpy()
+                Mixture_mu_pga = pga_pred
+                Mixture_mu_pgv = pgv_pred
+                Label_pga = label_pga
+                Label_pgv = label_pgv
             else:
-                Mixture_mu = np.concatenate(
-                    [Mixture_mu, torch.sum(weight * mu, dim=2).cpu().detach().numpy()],
-                    axis=1,
-                )
-                Label = np.concatenate(
-                    [Label, sample["label"].cpu().detach().numpy()], axis=1
-                )
-        Label = Label.flatten()
-        Mixture_mu = Mixture_mu.flatten()
+                Mixture_mu_pga = np.concatenate([Mixture_mu_pga, pga_pred], axis=1)
+                Mixture_mu_pgv = np.concatenate([Mixture_mu_pgv, pgv_pred], axis=1)
+                Label_pga = np.concatenate([Label_pga, label_pga], axis=1)
+                Label_pgv = np.concatenate([Label_pgv, label_pgv], axis=1)
+        # flatten results
+        Label_pga = Label_pga.flatten(); Mixture_mu_pga = Mixture_mu_pga.flatten()
+        Label_pgv = Label_pgv.flatten(); Mixture_mu_pgv = Mixture_mu_pgv.flatten()
 
+        # prepare output with dual targets
         output = {
             "EQ_ID": EQ_ID,
             "p_picks": P_picks,
-            f"{label}_time": Label_time,
-            "predict": Mixture_mu,
-            "answer": Label,
             "latitude": Lat,
             "longitude": Lon,
             "elevation": Elev,
+            "predict_pga": Mixture_mu_pga,
+            "answer_pga": Label_pga,
+            "predict_pgv": Mixture_mu_pgv,
+            "answer_pgv": Label_pgv,
         }
         output_df = pd.DataFrame(output)
-        output_df = output_df[output_df["answer"] != 0]
-        # output_df.to_csv(
-        #     f"../predict/model_{num}_analysis/model {num} {mask_after_sec} sec prediction_vel.csv", index=False
-        # )
+        # filter out zero labels
+        output_df = output_df[(output_df["answer_pga"] != 0) | (output_df["answer_pgv"] != 0)]
+        
+        os.makedirs(f"../predict_pga_pgv/model_{num}", exist_ok=True)
+        output_df.to_csv(
+            f"../predict_pga_pgv/model_{num}/model {num} {mask_after_sec} sec prediction_vel.csv", index=False
+        )
 
         # output_df = pd.read_csv(f"../predict/model_3_analysis(velocity)/model 3 {mask_after_sec} sec prediction_vel.csv")
 
-        fig, ax = Intensity_Plotter.plot_true_predicted(
-            y_true=output_df["answer"],
-            y_pred=output_df["predict"],
+        # plot prediction results
+
+        # plot PGA performance
+        fig_pga, ax_pga = Intensity_Plotter.plot_true_predicted(
+            y_true=output_df["answer_pga"],
+            y_pred=output_df["predict_pga"],
             agg="point",
             point_size=12,
-            target=label,
-            title=f"{mask_after_sec}s True Predict Plot, 2016 data model {num} ACC"
+            target="pga",
+            title=f"{mask_after_sec}s True Predict Plot PGA, 2016 data model {num}"
         )
-
-        # 用震度4分割畫不同顏色
-        # ax.scatter(
-        #     output_df["answer"][output_df["answer"] >= np.log10(0.057)],
-        #     output_df["predict"][output_df["answer"] >= np.log10(0.057)],
-        #     c="orange",
-        #     s=12
-        
-        # ) 
-
-        # r2_greater4 = metrics.r2_score(output_df["answer"][output_df["answer"] >= np.log10(0.057)], output_df["predict"][output_df["answer"] >= np.log10(0.057)])
-        # r2 = metrics.r2_score(output_df["answer"], output_df["predict"])
-
-        # limits = (np.min(output_df["answer"]) - 0.5, np.max(output_df["answer"])-0.5)
-        # ax.text(
-        #     min(np.min(output_df["answer"]), limits[0]),
-        #     max(np.max(output_df["answer"]), limits[1])-0.5,
-        #     f"$R^2={r2:.2f}$",
-        #     fontweight=1000, 
-        #     va="top",
-        #     fontsize=15,
-        #     color="dodgerblue", 
-            
-        # )
-        # ax.text(
-        #     min(np.min(output_df["answer"]), limits[0])+0.7, 
-        #     max(np.max(output_df["answer"]), limits[1])-0.5,
-        #     f"$R^2={r2_greater4:.2f}$",
-        #     fontweight=1000, 
-        #     va="top",
-        #     fontsize=15,
-        #     color="darkorange", 
-        # )
-        # eq_id = 24784
-        # ax.scatter(
-        # output_df["answer"][output_df["EQ_ID"] == eq_id],
-        # output_df["predict"][output_df["EQ_ID"] == eq_id],
-        # c="r",
-        # )
-        
-        # magnitude = data.event_metadata[data.event_metadata["EQ_ID"] == eq_id][
-        #     "magnitude"
-        # ].values[0]
-        # ax.set_title(
-        #     f"{mask_after_sec}s True Predict Plot, 2016 data model{num}",
-        #     fontsize=20,
-        # )
-
-        fig.savefig(f"../predict_acc/model {num} {mask_after_sec} sec_acc.png")
+        fig_pga.savefig(f"../predict_pga_pgv/model_{num}/model {num} {mask_after_sec} sec_pga_acc.png")
+        # plot PGV performance
+        fig_pgv, ax_pgv = Intensity_Plotter.plot_true_predicted(
+            y_true=output_df["answer_pgv"],
+            y_pred=output_df["predict_pgv"],
+            agg="point",
+            point_size=12,
+            target="pgv",
+            title=f"{mask_after_sec}s True Predict Plot PGV, 2016 data model {num}"
+        )
+        fig_pgv.savefig(f"../predict_pga_pgv/model_{num}/model {num} {mask_after_sec} sec_pgv_acc.png")
 
     # # ===========merge info==============
     # num = 9

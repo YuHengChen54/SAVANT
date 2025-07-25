@@ -88,7 +88,7 @@ class multiple_station_dataset(Dataset):
         mode="train",
         limit=None,
         input_type="acc",
-        label_key="pga",
+        label_keys=["pga", "pgv"],
         mask_waveform_sec=None,
         mask_waveform_random=False,
         dowmsampling=False,
@@ -171,7 +171,9 @@ class multiple_station_dataset(Dataset):
                             .reshape(-1, 1)
                         )
                         single_event_index = np.concatenate([eventid, index], axis=1)
-                    if key == label_key:
+                    if key == label_keys[0]:
+                        data[key] += [g_event[key][()]]
+                    if key == label_keys[1]:
                         data[key] += [g_event[key][()]]
                     if key == "p_picks":
                         data[key] += [g_event[key][()]]
@@ -184,15 +186,17 @@ class multiple_station_dataset(Dataset):
                 events_index = np.append(events_index, single_event_index, axis=0)
                 # events_index.append(single_event_index)
             events_index = np.delete(events_index, [0], 0)
-        labels = np.concatenate(data[label_key], axis=0)
+        pga_labels = np.concatenate(data[label_keys[0]], axis=0)
+        pgv_labels = np.concatenate(data[label_keys[1]], axis=0)
         stations = np.concatenate(data["station_name"], axis=0)
         picks = np.concatenate(data["p_picks"], axis=0)
         mask = (events_index != 0).any(axis=1)
         # label is nan mask
-        mask = np.logical_and(mask, ~np.isnan(labels))
+        pga_mask = np.logical_and(mask, ~np.isnan(pga_labels))
+        pgv_mask = np.logical_and(mask, ~np.isnan(pgv_labels))
         # random delete too small labels
         if dowmsampling:
-            small_labels_array = labels < np.log10(0.019)
+            small_labels_array = pga_labels < np.log10(0.019)
             np.random.seed(0)
             random_array = np.random.choice(
                 [True, False], size=small_labels_array.shape
@@ -200,11 +204,13 @@ class multiple_station_dataset(Dataset):
             random_delete_mask = np.logical_and(small_labels_array, random_array)
             mask = np.logical_and(mask, ~random_delete_mask)
 
-        labels = np.expand_dims(np.expand_dims(labels, axis=1), axis=2)
+        pga_labels = np.expand_dims(np.expand_dims(pga_labels, axis=1), axis=2)
+        pgv_labels = np.expand_dims(np.expand_dims(pgv_labels, axis=1), axis=2)
         stations = np.expand_dims(np.expand_dims(stations, axis=1), axis=2)
         p_picks = picks[mask]
         stations = stations[mask]
-        labels = labels[mask]
+        pga_labels = pga_labels[mask]
+        pgv_labels = pgv_labels[mask]
 
         ok_events_index = events_index[mask]
         ok_event_id = np.intersect1d(
@@ -253,7 +259,7 @@ class multiple_station_dataset(Dataset):
             p_picks = np.concatenate((p_picks, oversampled_picks), axis=0)
         if weight_label:
             labels = labels.flatten()
-            classifier = intensity_classifier(label=label_key)
+            classifier = intensity_classifier(label=label_keys[0])
             output_array = classifier.classify(labels)
             label_class, counts = np.unique(output_array, return_counts=True)
             label_counts = {}
@@ -316,8 +322,10 @@ class multiple_station_dataset(Dataset):
         self.event_metadata = event_metadata
         self.trace_metadata = trace_metadata
         self.input_type = input_type
-        self.label = label_key
-        self.labels = labels
+        self.pga_label = label_keys[0]
+        self.pgv_label = label_keys[1]
+        self.pga_labels = pga_labels
+        self.pgv_labels = pgv_labels
         self.ok_events_index = ok_events_index
         self.ok_event_id = ok_event_id
         if weight_label:
@@ -345,9 +353,11 @@ class multiple_station_dataset(Dataset):
             specific_waveforms = []
             stations_location = []
             label_targets_location = []
-            labels = []
+            pga_labels = []
+            pgv_labels = []
             seen_P_picks = []
-            labels_time = []
+            pga_labels_time = []
+            pgv_labels_time = []
             P_picks = []
             for eventID in specific_index[0]:  # trace waveform
 
@@ -395,17 +405,25 @@ class multiple_station_dataset(Dataset):
                 ]
                 Vs30 = f["data"][str(eventID[0])]["Vs30"][eventID[1]]
                 station_location = np.append(station_location, Vs30)
-                label = np.array(
-                    f["data"][str(eventID[0])][f"{self.label}"][eventID[1]]
+                pga_label = np.array(
+                    f["data"][str(eventID[0])][f"{self.pga_label}"][eventID[1]]
+                ).reshape(1, 1)
+                pgv_label = np.array(
+                    f["data"][str(eventID[0])][f"{self.pgv_label}"][eventID[1]]
                 ).reshape(1, 1)
                 p_pick = f["data"][str(eventID[0])]["p_picks"][eventID[1]]
-                label_time = f["data"][str(eventID[0])][f"{self.label}_time"][
+                pga_label_time = f["data"][str(eventID[0])][f"{self.pga_label}_time"][
+                    eventID[1]
+                ]
+                pgv_label_time = f["data"][str(eventID[0])][f"{self.pgv_label}_time"][
                     eventID[1]
                 ]
                 label_targets_location.append(station_location)
-                labels.append(label)
+                pga_labels.append(pga_label)
+                pgv_labels.append(pgv_label)
                 P_picks.append(p_pick)
-                labels_time.append(label_time)
+                pga_labels_time.append(pga_label_time)
+                pgv_labels_time.append(pgv_label_time)
             if (
                 len(stations_location) < self.max_station_num
             ):  # triggered station < max_station_number (default:25) zero padding
@@ -423,7 +441,8 @@ class multiple_station_dataset(Dataset):
                     self.label_target - len(label_targets_location)
                 ):
                     label_targets_location.append(np.zeros_like(station_location))
-                    labels.append(np.zeros_like(label))
+                    pga_labels.append(np.zeros_like(pga_label))
+                    pgv_labels.append(np.zeros_like(pgv_label))
             Specific_waveforms = np.array(specific_waveforms)
             if self.mask_waveform_random:
                 random_mask_sec = np.random.randint(self.mask_waveform_sec, 15)
@@ -450,9 +469,11 @@ class multiple_station_dataset(Dataset):
                         stations_location[i] = np.zeros_like(station_location)
             Stations_location = np.array(stations_location)
             label_targets_location = np.array(label_targets_location)
-            labels = np.array(labels)
+            pga_labels = np.array(pga_labels)
+            pgv_labels = np.array(pgv_labels)
             P_picks = np.array(P_picks)
-            labels_time = np.array(labels_time)
+            pga_labels_time = np.array(pga_labels_time)
+            pgv_labels_time = np.array(pgv_labels_time)
             if self.station_blind:
                 nonzero_indices = np.nonzero(Stations_location.any(axis=1))[0]
 
@@ -472,20 +493,24 @@ class multiple_station_dataset(Dataset):
                 "waveform": Specific_waveforms,
                 "sta": Stations_location,
                 "target": label_targets_location,
-                "label": labels,
+                "pga_label": pga_labels,
+                "pgv_label": pgv_labels,
             }
             return outputs
         else:
             P_picks = np.array(P_picks)
-            labels_time = np.array(labels_time)
+            pga_labels_time = np.array(pga_labels_time)
+            pgv_labels_time = np.array(pgv_labels_time)
             outputs = {
                 "waveform": Specific_waveforms,
                 "sta": Stations_location,
                 "target": label_targets_location,
-                "label": labels,
+                "label_pga": pga_labels,
+                "label_pgv": pgv_labels,
                 "EQ_ID": specific_index[0],
                 "p_picks": P_picks,
-                f"{self.label}_time": labels_time,
+                f"{self.pga_label}_time": pga_labels_time,
+                f"{self.pgv_label}_time": pgv_labels_time,
             }
             return outputs
 

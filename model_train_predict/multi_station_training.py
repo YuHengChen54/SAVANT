@@ -12,8 +12,11 @@ import sys
 sys.path.append("..")
 from model.CNN_Transformer_Mixtureoutput_TEAM import (
     CNN,
-    MDN,
+    MDN_PGA,
+    MDN_PGV,
     MLP,
+    MLP_output_pga,
+    MLP_output_pgv,
     PositionEmbedding_Vs30,  # if you don't have vs30 data, please use "PositionEmbedding"
     TransformerEncoder,
     full_model,
@@ -109,59 +112,69 @@ def train_process(
             print("--------------------train_start--------------------")
             for sample in tqdm(train_loader):  # training
                 optimizer.zero_grad()
-                weight, sigma, mu = full_Model(sample)
-                pga_label = (
-                    sample["label"]
-                    .reshape(hyper_param["batch_size"], full_data.label_target, 1)
-                    .cuda()
-                )
-                mask = ~pga_label.eq(0)  # 不讓pga zero padding去計算loss
+                weight_pga, sigma_pga, mu_pga, weight_pgv, sigma_pgv, mu_pgv = full_Model(sample)
 
-                pga_label_masked = torch.masked_select(pga_label, mask).reshape(-1, 1)
-                weight_masked = torch.masked_select(weight, mask).reshape(
-                    -1, num_of_gaussian
-                )
-                sigma_masked = torch.masked_select(sigma, mask).reshape(
-                    -1, num_of_gaussian
-                )
-                mu_masked = torch.masked_select(mu, mask).reshape(-1, num_of_gaussian)
-                train_loss = torch.mean(
-                    torch.sum(
-                        weight_masked
-                        * gaussian_loss(mu_masked, pga_label_masked, sigma_masked),
-                        axis=1,
-                    )
-                ).cuda()
+                # PGA loss
+                pga_label = sample["pga_label"].reshape(hyper_param["batch_size"], full_data.label_target, 1).cuda()
+                mask_pga = ~pga_label.eq(0)
+                pga_label_masked = torch.masked_select(pga_label, mask_pga).reshape(-1, 1)
+                weight_pga_masked = torch.masked_select(weight_pga, mask_pga).reshape(-1, num_of_gaussian)
+                sigma_pga_masked = torch.masked_select(sigma_pga, mask_pga).reshape(-1, num_of_gaussian)
+                mu_pga_masked = torch.masked_select(mu_pga, mask_pga).reshape(-1, num_of_gaussian)
+                loss_pga = torch.mean(torch.sum(
+                    weight_pga_masked * gaussian_loss(mu_pga_masked, pga_label_masked, sigma_pga_masked),
+                    axis=1
+                ))
+
+                # PGV loss (dataset must return sample["pgv_label"] with same shape)
+                pgv_label = sample["pgv_label"].reshape(hyper_param["batch_size"], full_data.label_target, 1).cuda()
+                mask_pgv = ~pgv_label.eq(0)
+                pgv_label_masked = torch.masked_select(pgv_label, mask_pgv).reshape(-1, 1)
+                weight_pgv_masked = torch.masked_select(weight_pgv, mask_pgv).reshape(-1, num_of_gaussian)
+                sigma_pgv_masked = torch.masked_select(sigma_pgv, mask_pgv).reshape(-1, num_of_gaussian)
+                mu_pgv_masked = torch.masked_select(mu_pgv, mask_pgv).reshape(-1, num_of_gaussian)
+                loss_pgv = torch.mean(torch.sum(
+                    weight_pgv_masked * gaussian_loss(mu_pgv_masked, pgv_label_masked, sigma_pgv_masked),
+                    axis=1
+                ))
+
+                # combine losses
+                train_loss = loss_pga + loss_pgv
                 train_loss.backward()
                 optimizer.step()
             print("train_loss", train_loss)
             training_loss.append(train_loss.data)
 
             for sample in tqdm(valid_loader):  # validation
-                weight, sigma, mu = full_Model(sample)
+                weight_pga, sigma_pga, mu_pga, weight_pgv, sigma_pgv, mu_pgv = full_Model(sample)
 
-                pga_label = (
-                    sample["label"]
-                    .reshape(hyper_param["batch_size"], full_data.label_target, 1)
-                    .cuda()
-                )
-                mask = ~pga_label.eq(0)  # 不讓pga zero padding去計算loss
+                # PGA loss
+                pga_label = sample["pga_label"].reshape(hyper_param["batch_size"], full_data.label_target, 1).cuda()
+                mask_pga = ~pga_label.eq(0)
+                pga_label_masked = torch.masked_select(pga_label, mask_pga).reshape(-1, 1)
+                weight_pga_masked = torch.masked_select(weight_pga, mask_pga).reshape(-1, num_of_gaussian)
+                sigma_pga_masked = torch.masked_select(sigma_pga, mask_pga).reshape(-1, num_of_gaussian)
+                mu_pga_masked = torch.masked_select(mu_pga, mask_pga).reshape(-1, num_of_gaussian)
+                loss_pga = torch.mean(torch.sum(
+                    weight_pga_masked * gaussian_loss(mu_pga_masked, pga_label_masked, sigma_pga_masked),
+                    axis=1
+                ))
 
-                pga_label_masked = torch.masked_select(pga_label, mask).reshape(-1, 1)
-                weight_masked = torch.masked_select(weight, mask).reshape(
-                    -1, num_of_gaussian
-                )
-                sigma_masked = torch.masked_select(sigma, mask).reshape(
-                    -1, num_of_gaussian
-                )
-                mu_masked = torch.masked_select(mu, mask).reshape(-1, num_of_gaussian)
-                val_loss = torch.mean(
-                    torch.sum(
-                        weight_masked
-                        * gaussian_loss(mu_masked, pga_label_masked, sigma_masked),
-                        axis=1,
-                    )
-                ).cuda()
+                # PGV loss (dataset must return sample["pgv_label"] with same shape)
+                pgv_label = sample["pgv_label"].reshape(hyper_param["batch_size"], full_data.label_target, 1).cuda()
+                mask_pgv = ~pgv_label.eq(0)
+                pgv_label_masked = torch.masked_select(pgv_label, mask_pgv).reshape(-1, 1)
+                weight_pgv_masked = torch.masked_select(weight_pgv, mask_pgv).reshape(-1, num_of_gaussian)
+                sigma_pgv_masked = torch.masked_select(sigma_pgv, mask_pgv).reshape(-1, num_of_gaussian)
+                mu_pgv_masked = torch.masked_select(mu_pgv, mask_pgv).reshape(-1, num_of_gaussian)
+                loss_pgv = torch.mean(torch.sum(
+                    weight_pgv_masked * gaussian_loss(mu_pgv_masked, pgv_label_masked, sigma_pgv_masked),
+                    axis=1
+                ))
+
+                # combine losses
+                val_loss = loss_pga + loss_pgv
+
             print("val_loss", val_loss)
             validation_loss.append(val_loss.data)
             log_metrics(
@@ -189,7 +202,7 @@ def train_process(
 
                 if trigger_times >= patience:
                     # 往前縮排測試
-                    path = "../model_acc"
+                    path = "../model_pga_pgv"
                     # if epoch+1 == hyper_param["num_epochs"]:
                     print(f"Early stopping! stop at epoch: {epoch+1}")
                     with open(
@@ -212,8 +225,8 @@ def train_process(
             else:
                 print("trigger 0 time")
                 trigger_times = 0
-                path = "../model_acc"
-                model_file = f"{path}/model{hyper_param['model_index']}_acc.pt"
+                path = "../model_pga_pgv"
+                model_file = f"{path}/model{hyper_param['model_index']}_pga_pgv.pt"
                 torch.save(full_Model.state_dict(), model_file)
                 log_artifact(model_file)
 
@@ -227,12 +240,12 @@ def train_process(
 
 if __name__ == "__main__":
     train_data_size = 0.8
-    model_index = 16
+    model_index = 53
     num_epochs = 300
     # batch_size=16
     for batch_size in [16]:
         for LR in [2.5e-5]:
-            for i in range(3):  # 原本是3
+            for i in range(5):  # 原本是3
                 model_index += 1
                 hyper_param = {
                     "model_index": model_index,
@@ -250,14 +263,20 @@ if __name__ == "__main__":
                 pos_emb_model = PositionEmbedding_Vs30(emb_dim=emb_dim).cuda()
                 transformer_model = TransformerEncoder()
                 mlp_model = MLP(input_shape=(emb_dim,), dims=mlp_dims).cuda()
-                mdn_model = MDN(input_shape=(mlp_dims[-1],)).cuda()
+                mlp_model_pga = MLP_output_pga(input_shape=(emb_dim,), dims=mlp_dims).cuda()
+                mlp_model_pgv = MLP_output_pgv(input_shape=(emb_dim,), dims=mlp_dims).cuda()
+                mdn_pga_model = MDN_PGA(input_shape=(mlp_dims[-1],)).cuda()
+                mdn_pgv_model = MDN_PGV(input_shape=(mlp_dims[-1],)).cuda()
 
                 full_Model = full_model(
                     CNN_model,
                     pos_emb_model,
                     transformer_model,
                     mlp_model,
-                    mdn_model,
+                    mlp_model_pga,
+                    mlp_model_pgv,
+                    mdn_pga_model,
+                    mdn_pgv_model,
                     pga_targets=25,
                     data_length=4000,
                 )
@@ -266,7 +285,10 @@ if __name__ == "__main__":
                         {"params": CNN_model.parameters()},
                         {"params": transformer_model.parameters()},
                         {"params": mlp_model.parameters()},
-                        {"params": mdn_model.parameters()},
+                        {"params": mlp_model_pga.parameters()},
+                        {"params": mlp_model_pgv.parameters()},
+                        {"params": mdn_pga_model.parameters()},
+                        {"params": mdn_pgv_model.parameters()},
                     ],
                     lr=LR,
                 )
@@ -280,7 +302,7 @@ if __name__ == "__main__":
                     test_year=2016,
                     mask_waveform_random=True,
                     mag_threshold=0,
-                    label_key="pga",
+                    label_keys=["pga", "pgv"],
                     input_type="acc",
                     data_length_sec=20,
                     station_blind=True,
@@ -291,6 +313,6 @@ if __name__ == "__main__":
                     full_data,
                     optimizer,
                     hyper_param,
-                    experiment_name="SAVANT ACC Train",
-                    run_name=f"6th_Train_Acc: model 17-19 | input:acc & vel | 20250714",
+                    experiment_name="SAVANT PGA and PGV Train",
+                    run_name=f"Revise_1st_Train_PGAPGV: model 54-58 | input:acc & vel | 20250724",
                 )

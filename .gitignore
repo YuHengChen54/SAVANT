@@ -11,6 +11,7 @@ mlruns/
 model/*
 !model/*.py
 model_acc/*
+model_pga_pgv/*
 
 # 4. 資料前處理目錄：只放行 .py
 data_preprocess/*
@@ -31,6 +32,7 @@ model_train_predict/*
 # 8. predict 目錄整包忽略
 predict/
 predict_acc/
+predict_pga_pgv/
 
 # 9. 系統產生的隱藏檔
 .DS_Store
