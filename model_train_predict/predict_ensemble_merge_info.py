@@ -42,8 +42,8 @@ for mask_sec in [3, 5, 7, 10, 13, 15]:
     )
     # ===========predict==============
     device = torch.device("cuda")
-    for num in [58]:
-    # for num in range(54, 58):  
+    # for num in [65]:
+    for num in range(74, 79):  
         path = f"../model_pga_pgv/model{num}_pga_pgv.pt"
         emb_dim = 150
         mlp_dims = (150, 100, 50, 30, 10)
@@ -165,73 +165,77 @@ for mask_sec in [3, 5, 7, 10, 13, 15]:
         )
         fig_pgv.savefig(f"../predict_pga_pgv/model_{num}/model {num} {mask_after_sec} sec_pgv_acc.png")
 
-    # # ===========merge info==============
-    # num = 9
-    # Afile_path = "../data"
-    # output_path = f"../predict/model_{num}_analysis"
-    # catalog = pd.read_csv(f"{Afile_path}/1999_2019_final_catalog.csv")
-    # traces_info = pd.read_csv(f"{Afile_path}/1999_2019_final_traces_Vs30.csv")
-    # ensemble_predict = pd.read_csv(
-    #     f"{output_path}/model {num} {mask_after_sec} sec prediction_vel.csv"
-    # )
-    # trace_merge_catalog = pd.merge(
-    #     traces_info,
-    #     catalog[
-    #         [
-    #             "EQ_ID",
-    #             "lat",
-    #             "lat_minute",
-    #             "lon",
-    #             "lon_minute",
-    #             "depth",
-    #             "magnitude",
-    #             "nsta",
-    #             "nearest_sta_dist (km)",
-    #         ]
-    #     ],
-    #     on="EQ_ID",
-    #     how="left",
-    # )
-    # trace_merge_catalog["event_lat"] = (
-    #     trace_merge_catalog["lat"] + trace_merge_catalog["lat_minute"] / 60
-    # )
+#%%
+# # ===========merge info==============
+num = 76
+output_path = f"../predict_pga_pgv/model_{num}"
+catalog = pd.read_csv(f"../../../TT-SAM/code/data/1999_2019_final_catalog.csv")
+traces_info = pd.read_csv(f"../../../TT-SAM/code/data/1999_2019_final_traces_Vs30.csv")
 
-    # trace_merge_catalog["event_lon"] = (
-    #     trace_merge_catalog["lon"] + trace_merge_catalog["lon_minute"] / 60
-    # )
-    # trace_merge_catalog.drop(
-    #     ["lat", "lat_minute", "lon", "lon_minute"], axis=1, inplace=True
-    # )
-    # trace_merge_catalog.rename(columns={"elevation (m)": "elevation"}, inplace=True)
+for mask_after_sec in [3, 5, 7, 10, 13, 15]:
+    ensemble_predict = pd.read_csv(
+        f"{output_path}/model {num} {mask_after_sec} sec prediction_vel.csv"
+    )
+    trace_merge_catalog = pd.merge(
+        traces_info,
+        catalog[
+            [
+                "EQ_ID",
+                "lat",
+                "lat_minute",
+                "lon",
+                "lon_minute",
+                "depth",
+                "magnitude",
+                "nsta",
+                "nearest_sta_dist (km)",
+            ]
+        ],
+        on="EQ_ID",
+        how="left",
+    )
+    trace_merge_catalog["event_lat"] = (
+        trace_merge_catalog["lat"] + trace_merge_catalog["lat_minute"] / 60
+    )
 
-
-    # data_path = "../data/TSMIP_1999_2019_Vs30_integral.hdf5"
-    # dataset = h5py.File(data_path, "r")
-    # for eq_id in ensemble_predict["EQ_ID"].unique():
-    #     eq_id = int(eq_id)
-    #     station_name = dataset["data"][str(eq_id)]["station_name"][:].tolist()
-
-    #     ensemble_predict.loc[
-    #         ensemble_predict.query(f"EQ_ID=={eq_id}").index, "station_name"
-    #     ] = station_name
-
-    # ensemble_predict["station_name"] = ensemble_predict["station_name"].str.decode("utf-8")
+    trace_merge_catalog["event_lon"] = (
+        trace_merge_catalog["lon"] + trace_merge_catalog["lon_minute"] / 60
+    )
+    trace_merge_catalog.drop(
+        ["lat", "lat_minute", "lon", "lon_minute"], axis=1, inplace=True
+    )
+    trace_merge_catalog.rename(columns={"elevation (m)": "elevation"}, inplace=True)
 
 
-    # prediction_with_info = pd.merge(
-    #     ensemble_predict,
-    #     trace_merge_catalog.drop(
-    #         [
-    #             "latitude",
-    #             "longitude",
-    #             "elevation",
-    #         ],
-    #         axis=1,
-    #     ),
-    #     on=["EQ_ID", "station_name"],
-    #     how="left",
-    #     suffixes=["_window", "_file"],
-    # )
-    # prediction_with_info.to_csv(
-    #     f"{output_path}/{mask_after_sec} sec model{num} with all info_vel.csv", index=False
-    # )
+    data_path = "../../../TT-SAM/code/data/TSMIP_1999_2019_Vs30_integral.hdf5"
+    dataset = h5py.File(data_path, "r")
+    for eq_id in ensemble_predict["EQ_ID"].unique():
+        eq_id = int(eq_id)
+        station_name = dataset["data"][str(eq_id)]["station_name"][:].tolist()
+
+        ensemble_predict.loc[
+            ensemble_predict.query(f"EQ_ID=={eq_id}").index, "station_name"
+        ] = station_name
+
+    ensemble_predict["station_name"] = ensemble_predict["station_name"].str.decode("utf-8")
+
+
+    prediction_with_info = pd.merge(
+        ensemble_predict,
+        trace_merge_catalog.drop(
+            [
+                "latitude",
+                "longitude",
+                "elevation",
+            ],
+            axis=1,
+        ),
+        on=["EQ_ID", "station_name"],
+        how="left",
+        suffixes=["_window", "_file"],
+    )
+    prediction_with_info.to_csv(
+        f"{output_path}/{mask_after_sec} sec model{num} with all info_vel.csv", index=False
+    )
+
+# %%

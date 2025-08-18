@@ -44,6 +44,7 @@ class Precision_Recall_Factory:
 
     def plot_intensity_confusion_matrix(
         intensity_confusion_matrix,
+        label,
         strict_score=None,
         loose_score=None, 
         mask_after_sec=None,
@@ -81,7 +82,7 @@ class Precision_Recall_Factory:
             ax.set_title(title)
         if output_path:
             fig.savefig(
-                f"{output_path}/{mask_after_sec} sec intensity confusion matrix.png",
+                f"{output_path}/{label}_{mask_after_sec} sec intensity confusion matrix.png",
                 dpi=300,
             )
         return fig, ax
@@ -90,6 +91,7 @@ class Precision_Recall_Factory:
         performance_score,
         fig,
         ax,
+        label,
         score_type,
         score_curve_threshold,
         mask_after_sec,
@@ -116,11 +118,15 @@ class Precision_Recall_Factory:
             ax.legend()
 
             # ➤ 畫上虛線（選擇保留）
-            x_019 = 100 * 0.019
-            x_057 = 100 * 0.057
-            for mark_x, label in zip([x_019, x_057], ["III", "IV"]):
+            if label == "pgv":
+                x_III = 100 * 0.019
+                x_IV = 100 * 0.057
+            elif label == "pga":
+                x_III = 100 * 0.08
+                x_IV = 100 * 0.25
+            for mark_x, intensity_label in zip([x_III, x_IV], ["III", "IV"]):
                 ax.axvline(x=mark_x, linestyle="dotted", color="grey", linewidth=1)
-                ax.text(mark_x, 1.1, label, ha="center", va="bottom", fontsize=15, zorder=5)
+                ax.text(mark_x, 1.1, intensity_label, ha="center", va="bottom", fontsize=15, zorder=5)
 
             if output_path:
                 fig.savefig(f"{output_path}/{score_type}_curve.png", dpi=300)
@@ -131,13 +137,17 @@ class Precision_Recall_Factory:
             x_vals = 100 * (10**score_curve_threshold)  # PGV in cm/s
             y_vals = performance_score[f"{score_type}"]
 
-            # 找 0.019 和 0.057 的 index 和 y 值
-            x_019 = 100 * 0.019
-            x_057 = 100 * 0.057
-            score_019 = np.interp(x_019, x_vals, y_vals)
-            score_057 = np.interp(x_057, x_vals, y_vals)
+            # 找 III 和 IV 的 index 和 y 值
+            if label == "pgv":
+                x_III = 100 * 0.019
+                x_IV = 100 * 0.057
+            elif label == "pga":
+                x_III = 100 * 0.08
+                x_IV = 100 * 0.25
+            score_III = np.interp(x_III, x_vals, y_vals)
+            score_IV = np.interp(x_IV, x_vals, y_vals)
 
-            print(f"{mask_after_sec} sec: {score_type}(III: {score_019:.2f}, IV: {score_057:.2f})")
+            print(f"{mask_after_sec} sec: {score_type}(III: {score_III:.3f}, IV: {score_IV:.3f})")
             ax.plot(x_vals, y_vals, linewidth=4,  label=f"{mask_after_sec} sec")
 
             # 標準圖表設定
@@ -149,12 +159,12 @@ class Precision_Recall_Factory:
             # ax.legend(loc="lower left")
 
             # ➤ 畫上虛線（選擇保留）
-            for mark_x, label in zip([x_019, x_057], ["III", "IV"]):
+            for mark_x, intensity_label in zip([x_III, x_IV], ["III", "IV"]):
                 ax.axvline(x=mark_x, linestyle="dotted", color="grey", linewidth=1)
-                ax.text(mark_x, 1.1, label, ha="center", va="bottom", fontsize=15, zorder=5)
+                ax.text(mark_x, 1.1, intensity_label, ha="center", va="bottom", fontsize=15, zorder=5)
 
             if output_path:
-                fig.savefig(f"{output_path}/{score_type}_curve.png", dpi=300)
+                fig.savefig(f"{output_path}/{label}_prediction_{score_type}_curve.png", dpi=300)
 
         return fig, ax
 

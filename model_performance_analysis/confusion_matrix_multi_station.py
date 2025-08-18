@@ -5,46 +5,69 @@ from sklearn.metrics import confusion_matrix
 import os
 from analysis import Precision_Recall_Factory
 
-model_num = 24
-path = f"../predict/model_{model_num}_analysis"
+model_num = 76
+path = f"../predict_pga_pgv/model_{model_num}"
 output_path = f"{path}/model_{model_num}_analysis"
 if not os.path.isdir(output_path):
     os.mkdir(output_path)
 
-label = "pgv"
-unit = "m/s"
+label = "pga"
 
-#形成 warning threshold array 其中包含對應的4~5級標準
-target_value = np.log10(0.15)
+if label == "pga":
+    unit = "m/s^2"
+elif label == "pgv":
+    unit = "m/s"
 
-# 生成一個包含目標值的數組
-score_curve_threshold = np.linspace(np.log10(0.007), np.log10(0.3), 100)
+if label == "pgv":
+    #形成 warning threshold array 其中包含對應的4~5級標準
+    target_value = np.log10(0.15)
 
-# 檢查最接近的值
-closest_value = min(score_curve_threshold, key=lambda x: abs(x - target_value))
+    # 生成一個包含目標值的數組
+    score_curve_threshold = np.linspace(np.log10(0.007), np.log10(0.3), 100)
 
-# 調整num參數以確保包含目標值
-if closest_value != target_value:
-    num_adjusted = 100 + int(np.ceil(abs(target_value - closest_value) / np.diff(score_curve_threshold[:2])))
-    score_curve_threshold = np.linspace(np.log10(0.002), np.log10(0.1), num_adjusted)
+    # 檢查最接近的值
+    closest_value = min(score_curve_threshold, key=lambda x: abs(x - target_value))
+
+    # 調整num參數以確保包含目標值
+    if closest_value != target_value:
+        num_adjusted = 100 + int(np.ceil(abs(target_value - closest_value) / np.diff(score_curve_threshold[:2])))
+        score_curve_threshold = np.linspace(np.log10(0.002), np.log10(0.1), num_adjusted)
+elif label == "pga":
+    #形成 warning threshold array 其中包含對應的4~5級標準
+    target_value = np.log10(0.8)
+
+    # 生成一個包含目標值的數組
+    score_curve_threshold = np.linspace(np.log10(0.025), np.log10(1.4), 100)
+
+    # 檢查最接近的值
+    closest_value = min(score_curve_threshold, key=lambda x: abs(x - target_value))
+
+    # 調整num參數以確保包含目標值
+    if closest_value != target_value:
+        num_adjusted = 100 + int(np.ceil(abs(target_value - closest_value) / np.diff(score_curve_threshold[:2])))
+        score_curve_threshold = np.linspace(np.log10(0.008), np.log10(0.5), num_adjusted)
 
 
 intensity_score_dict = {"second": [], "intensity_score": []}
 # Comprehensive curve
-compre_curve_fig, compre_curve_ax = plt.subplots(figsize=(5,5), dpi=350)
+# compre_curve_fig, compre_curve_ax = plt.subplots(figsize=(5,5), dpi=350)
 # Three score type curve
-# f1_curve_fig, f1_curve_ax = plt.subplots(figsize=(5,5), dpi=350)
-# precision_curve_fig, precision_curve_ax = plt.subplots(figsize=(5,5), dpi=350)
-# recall_curve_fig, recall_curve_ax = plt.subplots(figsize=(5,5), dpi=350)
+f1_curve_fig, f1_curve_ax = plt.subplots(figsize=(5,5), dpi=350)
+precision_curve_fig, precision_curve_ax = plt.subplots(figsize=(5,5), dpi=350)
+recall_curve_fig, recall_curve_ax = plt.subplots(figsize=(5,5), dpi=350)
 
-for mask_after_sec in [13]:
+for mask_after_sec in [3, 5, 7, 10, 13]:
     data = pd.read_csv(f"{path}/{mask_after_sec} sec model{model_num} with all info_vel.csv")
 
-    predict_label = data["predict"]
-    real_label = data["answer"]
+    predict_label = data[f"predict_{label}"]
+    real_label = data[f"answer_{label}"]
 
-    data["predicted_intensity"] = predict_label.apply(Precision_Recall_Factory.pgv_to_intensity)
-    data["answer_intensity"] = real_label.apply(Precision_Recall_Factory.pgv_to_intensity)
+    if label == "pga":
+        data["predicted_intensity"] = predict_label.apply(Precision_Recall_Factory.pga_to_intensity)
+        data["answer_intensity"] = real_label.apply(Precision_Recall_Factory.pga_to_intensity)
+    elif label == "pgv":
+        data["predicted_intensity"] = predict_label.apply(Precision_Recall_Factory.pgv_to_intensity)
+        data["answer_intensity"] = real_label.apply(Precision_Recall_Factory.pgv_to_intensity)
 
     # calculate intensity score
     intensity_label = ["0", "1", "2", "3", "4", "5-", "5+", "6-", "6+", "7"]
@@ -79,7 +102,7 @@ for mask_after_sec in [13]:
     intensity_confusion_matrix = confusion_matrix(
         data["predicted_intensity"], data["answer_intensity"], labels=intensity_label
     )
-    fig,ax=Precision_Recall_Factory.plot_intensity_confusion_matrix(intensity_confusion_matrix,strict_score,loose_score,mask_after_sec,output_path=f"../predict/model_{model_num}_analysis")
+    fig,ax=Precision_Recall_Factory.plot_intensity_confusion_matrix(intensity_confusion_matrix, label, strict_score,loose_score,mask_after_sec,output_path=f"../predict_pga_pgv/model_{model_num}/model_{model_num}_analysis")
 
     performance_score = {
         f"{label}_threshold ({unit})": [],
@@ -116,42 +139,45 @@ for mask_after_sec in [13]:
         performance_score["F1"].append(F1_score)
 
 
-    compre_curve_fig, compre_curve_ax = Precision_Recall_Factory.plot_score_curve(
+    # compre_curve_fig, compre_curve_ax = Precision_Recall_Factory.plot_score_curve(
+    #     performance_score,
+    #     compre_curve_fig,
+    #     compre_curve_ax,
+    #     "comprehensive",
+    #     score_curve_threshold,
+    #     mask_after_sec,
+    #     output_path=f"../predict/model_{model_num}_analysis",
+    # )
+    f1_curve_fig, f1_curve_ax = Precision_Recall_Factory.plot_score_curve(
         performance_score,
-        compre_curve_fig,
-        compre_curve_ax,
-        "comprehensive",
+        f1_curve_fig,
+        f1_curve_ax,
+        label,
+        "F1",
         score_curve_threshold,
         mask_after_sec,
-        output_path=f"../predict/model_{model_num}_analysis",
+        output_path=f"../predict_pga_pgv/model_{model_num}/model_{model_num}_analysis",
     )
-    # f1_curve_fig, f1_curve_ax = Precision_Recall_Factory.plot_score_curve(
-    #     performance_score,
-    #     f1_curve_fig,
-    #     f1_curve_ax,
-    #     "F1",
-    #     score_curve_threshold,
-    #     mask_after_sec,
-    #     output_path=f"../predict/model_{model_num}_analysis",
-    # )
-    # precision_curve_fig, precision_curve_ax = Precision_Recall_Factory.plot_score_curve(
-    #     performance_score,
-    #     precision_curve_fig,
-    #     precision_curve_ax,
-    #     "precision",
-    #     score_curve_threshold,
-    #     mask_after_sec,
-    #     output_path=f"../predict/model_{model_num}_analysis",
-    # )
-    # recall_curve_fig, recall_curve_ax = Precision_Recall_Factory.plot_score_curve(
-    #     performance_score,
-    #     recall_curve_fig,
-    #     recall_curve_ax,
-    #     "recall",
-    #     score_curve_threshold,
-    #     mask_after_sec,
-    #     output_path=f"../predict/model_{model_num}_analysis",
-    # )
+    precision_curve_fig, precision_curve_ax = Precision_Recall_Factory.plot_score_curve(
+        performance_score,
+        precision_curve_fig,
+        precision_curve_ax,
+        label,
+        "precision",
+        score_curve_threshold,
+        mask_after_sec,
+        output_path=f"../predict_pga_pgv/model_{model_num}/model_{model_num}_analysis",
+    )
+    recall_curve_fig, recall_curve_ax = Precision_Recall_Factory.plot_score_curve(
+        performance_score,
+        recall_curve_fig,
+        recall_curve_ax,
+        label,
+        "recall",
+        score_curve_threshold,
+        mask_after_sec,
+        output_path=f"../predict_pga_pgv/model_{model_num}/model_{model_num}_analysis",
+    )
 
     predict_table = pd.DataFrame(performance_score)
     # predict_table.to_csv(

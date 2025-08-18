@@ -102,7 +102,7 @@ def train_process(
         print(f'train {hyper_param["num_epochs"]} times')
         the_last_loss = 100  # initial early stop value
         if hyper_param["learning_rate"] >= 5e-05:
-            patience = 10
+            patience = 15
         elif hyper_param["learning_rate"] >= 0:
             patience = 15
         print("patience", patience)
@@ -240,7 +240,7 @@ def train_process(
 
 if __name__ == "__main__":
     train_data_size = 0.8
-    model_index = 53
+    model_index = 78
     num_epochs = 300
     # batch_size=16
     for batch_size in [16]:
@@ -314,5 +314,5 @@ if __name__ == "__main__":
                     optimizer,
                     hyper_param,
                     experiment_name="SAVANT PGA and PGV Train",
-                    run_name=f"Revise_1st_Train_PGAPGV: model 54-58 | input:acc & vel | 20250724",
+                    run_name=f"2nd_Train_PGAPGV w/displacement : model {model_index} (learning_rate={LR}) | input:acc & vel & dis| 20250814",
                 )
