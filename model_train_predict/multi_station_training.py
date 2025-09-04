@@ -3,6 +3,7 @@ import os
 import mlflow.pytorch
 import torch
 import torch.nn as nn
+import math
 from mlflow import log_artifact, log_metrics, log_param, log_params
 from torch.backends import cudnn
 from torch.utils.data import DataLoader, random_split
@@ -110,6 +111,8 @@ def train_process(
         for epoch in range(hyper_param["num_epochs"]):
             print(f"Epoch:{epoch+1}")
             print("--------------------train_start--------------------")
+            # unified imbalance mode for both PGA & PGV
+            mode = hyper_param.get("imbalance_mode", "none").upper()
             for sample in tqdm(train_loader):  # training
                 optimizer.zero_grad()
                 weight_pga, sigma_pga, mu_pga, weight_pgv, sigma_pgv, mu_pgv = full_Model(sample)
@@ -125,6 +128,23 @@ def train_process(
                     weight_pga_masked * gaussian_loss(mu_pga_masked, pga_label_masked, sigma_pga_masked),
                     axis=1
                 ))
+                # Optional MFE/MSFE for PGA (does not change original computation above)
+                loss_all_pga = torch.sum(
+                    weight_pga_masked * gaussian_loss(mu_pga_masked, pga_label_masked, sigma_pga_masked), dim=1
+                )  # [M]
+                thresh_pga = hyper_param.get("minority_threshold_pga", math.log10(0.8))
+                if not isinstance(thresh_pga, torch.Tensor):
+                    thresh_pga = torch.tensor(thresh_pga, device=pga_label_masked.device, dtype=pga_label_masked.dtype)
+                min_mask_pga = (pga_label_masked.view(-1) >= thresh_pga)
+                maj_mask_pga = ~min_mask_pga
+                FNE_pga = loss_all_pga[min_mask_pga].mean() if torch.any(min_mask_pga) else loss_all_pga.new_tensor(0.0)
+                FPE_pga = loss_all_pga[maj_mask_pga].mean() if torch.any(maj_mask_pga) else loss_all_pga.new_tensor(0.0)
+                if mode == "MFE":
+                    loss_pga_new = FPE_pga + FNE_pga
+                elif mode == "MSFE":
+                    loss_pga_new = 0.5 * (FPE_pga ** 2 + FNE_pga ** 2)
+                else:
+                    loss_pga_new = loss_pga
 
                 # PGV loss (dataset must return sample["pgv_label"] with same shape)
                 pgv_label = sample["pgv_label"].reshape(hyper_param["batch_size"], full_data.label_target, 1).cuda()
@@ -137,9 +157,26 @@ def train_process(
                     weight_pgv_masked * gaussian_loss(mu_pgv_masked, pgv_label_masked, sigma_pgv_masked),
                     axis=1
                 ))
+                # Optional MFE/MSFE for PGV
+                loss_all_pgv = torch.sum(
+                    weight_pgv_masked * gaussian_loss(mu_pgv_masked, pgv_label_masked, sigma_pgv_masked), dim=1
+                )  # [M]
+                thresh_pgv = hyper_param.get("minority_threshold_pgv", math.log10(0.15))
+                if not isinstance(thresh_pgv, torch.Tensor):
+                    thresh_pgv = torch.tensor(thresh_pgv, device=pgv_label_masked.device, dtype=pgv_label_masked.dtype)
+                min_mask_pgv = (pgv_label_masked.view(-1) >= thresh_pgv)
+                maj_mask_pgv = ~min_mask_pgv
+                FNE_pgv = loss_all_pgv[min_mask_pgv].mean() if torch.any(min_mask_pgv) else loss_all_pgv.new_tensor(0.0)
+                FPE_pgv = loss_all_pgv[maj_mask_pgv].mean() if torch.any(maj_mask_pgv) else loss_all_pgv.new_tensor(0.0)
+                if mode == "MFE":
+                    loss_pgv_new = FPE_pgv + FNE_pgv
+                elif mode == "MSFE":
+                    loss_pgv_new = 0.5 * (FPE_pgv ** 2 + FNE_pgv ** 2)
+                else:
+                    loss_pgv_new = loss_pgv
 
-                # combine losses
-                train_loss = loss_pga + loss_pgv
+                # combine losses (use new ones if enabled)
+                train_loss = loss_pga_new + loss_pgv_new
                 train_loss.backward()
                 optimizer.step()
             print("train_loss", train_loss)
@@ -159,6 +196,24 @@ def train_process(
                     weight_pga_masked * gaussian_loss(mu_pga_masked, pga_label_masked, sigma_pga_masked),
                     axis=1
                 ))
+                # Optional MFE/MSFE for PGA (validation)
+                loss_all_pga = torch.sum(
+                    weight_pga_masked * gaussian_loss(mu_pga_masked, pga_label_masked, sigma_pga_masked), dim=1
+                )
+                # build threshold on validation tensor/device
+                thresh_pga_val = hyper_param.get("minority_threshold_pga", math.log10(0.8))
+                if not isinstance(thresh_pga_val, torch.Tensor):
+                    thresh_pga_val = torch.tensor(thresh_pga_val, device=pga_label_masked.device, dtype=pga_label_masked.dtype)
+                min_mask_pga = (pga_label_masked.view(-1) >= thresh_pga_val)
+                maj_mask_pga = ~min_mask_pga
+                vFNE_pga = loss_all_pga[min_mask_pga].mean() if torch.any(min_mask_pga) else loss_all_pga.new_tensor(0.0)
+                vFPE_pga = loss_all_pga[maj_mask_pga].mean() if torch.any(maj_mask_pga) else loss_all_pga.new_tensor(0.0)
+                if mode == "MFE":
+                    loss_pga_new = vFPE_pga + vFNE_pga
+                elif mode == "MSFE":
+                    loss_pga_new = 0.5 * (vFPE_pga ** 2 + vFNE_pga ** 2)
+                else:
+                    loss_pga_new = loss_pga
 
                 # PGV loss (dataset must return sample["pgv_label"] with same shape)
                 pgv_label = sample["pgv_label"].reshape(hyper_param["batch_size"], full_data.label_target, 1).cuda()
@@ -171,9 +226,26 @@ def train_process(
                     weight_pgv_masked * gaussian_loss(mu_pgv_masked, pgv_label_masked, sigma_pgv_masked),
                     axis=1
                 ))
+                # Optional MFE/MSFE for PGV (validation)
+                loss_all_pgv = torch.sum(
+                    weight_pgv_masked * gaussian_loss(mu_pgv_masked, pgv_label_masked, sigma_pgv_masked), dim=1
+                )
+                thresh_pgv_val = hyper_param.get("minority_threshold_pgv", math.log10(0.15))
+                if not isinstance(thresh_pgv_val, torch.Tensor):
+                    thresh_pgv_val = torch.tensor(thresh_pgv_val, device=pgv_label_masked.device, dtype=pgv_label_masked.dtype)
+                min_mask_pgv = (pgv_label_masked.view(-1) >= thresh_pgv_val)
+                maj_mask_pgv = ~min_mask_pgv
+                vFNE_pgv = loss_all_pgv[min_mask_pgv].mean() if torch.any(min_mask_pgv) else loss_all_pgv.new_tensor(0.0)
+                vFPE_pgv = loss_all_pgv[maj_mask_pgv].mean() if torch.any(maj_mask_pgv) else loss_all_pgv.new_tensor(0.0)
+                if mode == "MFE":
+                    loss_pgv_new = vFPE_pgv + vFNE_pgv
+                elif mode == "MSFE":
+                    loss_pgv_new = 0.5 * (vFPE_pgv ** 2 + vFNE_pgv ** 2)
+                else:
+                    loss_pgv_new = loss_pgv
 
-                # combine losses
-                val_loss = loss_pga + loss_pgv
+                # combine losses (use new ones if enabled)
+                val_loss = loss_pga_new + loss_pgv_new
 
             print("val_loss", val_loss)
             validation_loss.append(val_loss.data)
@@ -240,7 +312,7 @@ def train_process(
 
 if __name__ == "__main__":
     train_data_size = 0.8
-    model_index = 78
+    model_index = 90
     num_epochs = 300
     # batch_size=16
     for batch_size in [16]:
@@ -251,7 +323,10 @@ if __name__ == "__main__":
                     "model_index": model_index,
                     "num_epochs": num_epochs,
                     "batch_size": batch_size,
-                    "learning_rate": LR,
+                    "learning_rate": LR, 
+                    "imbalance_mode": "MFE",  # "none", "MFE", "MSFE"
+                    "minority_threshold_pga": 0.08,
+                    "minority_threshold_pgv": 0.019
                 }
                 print(f"learning rate: {LR}")
                 print(f"batch size: {batch_size}")
@@ -313,6 +388,6 @@ if __name__ == "__main__":
                     full_data,
                     optimizer,
                     hyper_param,
-                    experiment_name="SAVANT PGA and PGV Train",
-                    run_name=f"2nd_Train_PGAPGV w/displacement : model {model_index} (learning_rate={LR}) | input:acc & vel & dis| 20250814",
+                    experiment_name="SAVANT MFE/MSFE Train",
+                    run_name=f"1st_Train_PGA/PGV use MFE : model {model_index} (learning_rate={LR}) | input:acc & vel & lowfreq | 20250903",
                 )
