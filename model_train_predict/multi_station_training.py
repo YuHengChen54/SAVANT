@@ -11,7 +11,7 @@ from tqdm import tqdm
 import sys
 
 sys.path.append("..")
-from model.CNN_Transformer_Mixtureoutput_TEAM import (
+from code.model.CNN_Transformer_Mixtureoutput import (
     CNN,
     MDN_PGA,
     MDN_PGV,
