@@ -43,7 +43,7 @@ for mask_sec in [3, 5, 7, 10, 13, 15]:
     # ===========predict==============
     device = torch.device("cuda")
     # for num in [65]:
-    for num in range(74, 79):  
+    for num in range(101, 126):  
         path = f"../model_pga_pgv/model{num}_pga_pgv.pt"
         emb_dim = 150
         mlp_dims = (150, 100, 50, 30, 10)
