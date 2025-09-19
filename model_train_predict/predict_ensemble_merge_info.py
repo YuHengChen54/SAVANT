@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import sys
 sys.path.append("..")
-from code.model.CNN_Transformer_Mixtureoutput import (
+from model.CNN_Transformer_Mixtureoutput import (
     CNN,
     MDN_PGA,
     MDN_PGV,
@@ -154,6 +154,8 @@ for mask_sec in [3, 5, 7, 10, 13, 15]:
             title=f"{mask_after_sec}s True Predict Plot PGA, 2016 data model {num}"
         )
         fig_pga.savefig(f"../predict_pga_pgv/model_{num}/model {num} {mask_after_sec} sec_pga_acc.png")
+        fig_pga.close()
+        
         # plot PGV performance
         fig_pgv, ax_pgv = Intensity_Plotter.plot_true_predicted(
             y_true=output_df["answer_pgv"],
@@ -164,6 +166,7 @@ for mask_sec in [3, 5, 7, 10, 13, 15]:
             title=f"{mask_after_sec}s True Predict Plot PGV, 2016 data model {num}"
         )
         fig_pgv.savefig(f"../predict_pga_pgv/model_{num}/model {num} {mask_after_sec} sec_pgv_acc.png")
+        fig_pgv.close()
 
 #%%
 # # ===========merge info==============
