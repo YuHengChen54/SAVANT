@@ -11,7 +11,7 @@ from tqdm import tqdm
 import sys
 
 sys.path.append("..")
-from code.model.CNN_Transformer_Mixtureoutput import (
+from model.CNN_Transformer_Mixtureoutput import (
     CNN,
     MDN_PGA,
     MDN_PGV,
@@ -23,6 +23,45 @@ from code.model.CNN_Transformer_Mixtureoutput import (
     full_model,
 )
 from data.multiple_sta_dataset import multiple_station_dataset
+
+# -------------------------------
+# Intensity -> threshold mapping
+# Note: values below are placeholders based on common PGA/PGV bins.
+#       You can edit INTENSITY_TO_THRESHOLDS later to match your exact scale.
+#       We convert to log10 in the resolver since labels are in log10 space.
+# -------------------------------
+INTENSITY_TO_THRESHOLDS = {
+    # intensity_level: { 'pga': linear_value, 'pgv': linear_value }
+    # Edit these values as needed
+    "I":   {"pga": 0.008, "pgv": 0.002},
+    "II":  {"pga": 0.025, "pgv": 0.007},
+    "III": {"pga": 0.080, "pgv": 0.019},
+    "IV":  {"pga": 0.250, "pgv": 0.057},
+    "V-":   {"pga": 0.800, "pgv": 0.150},
+    "V+":   {"pga": 1.400, "pgv": 0.300},
+    "VI-":  {"pga": 2.500, "pgv": 0.500},
+    "VI+":  {"pga": 4.400, "pgv": 0.800},
+    "VII": {"pga": 8.000, "pgv": 1.400},
+}
+
+def resolve_minority_thresholds(intensity: str | None = None,
+                                override_pga: float | None = None,
+                                override_pgv: float | None = None):
+    """Return (log10_pga_threshold, log10_pgv_threshold).
+
+    If override values are provided, use them; otherwise look up by intensity label.
+    Falls back to (log10(0.08), log10(0.019)) if nothing provided.
+    """
+    # Prefer explicit overrides
+    if override_pga is not None and override_pgv is not None:
+        return math.log10(override_pga), math.log10(override_pgv)
+    # Then try intensity mapping
+    if intensity:
+        rec = INTENSITY_TO_THRESHOLDS.get(str(intensity).upper())
+        if rec is not None:
+            return math.log10(rec["pga"]), math.log10(rec["pgv"])
+    # Default fallback
+    return math.log10(0.08), math.log10(0.019)
 
 """
 set up mlflow experiment:
@@ -132,7 +171,8 @@ def train_process(
                 loss_all_pga = torch.sum(
                     weight_pga_masked * gaussian_loss(mu_pga_masked, pga_label_masked, sigma_pga_masked), dim=1
                 )  # [M]
-                thresh_pga = hyper_param.get("minority_threshold_pga", math.log10(0.8))
+                # thresholds are stored in log10 space
+                thresh_pga = hyper_param.get("minority_threshold_pga", math.log10(0.08))
                 if not isinstance(thresh_pga, torch.Tensor):
                     thresh_pga = torch.tensor(thresh_pga, device=pga_label_masked.device, dtype=pga_label_masked.dtype)
                 min_mask_pga = (pga_label_masked.view(-1) >= thresh_pga)
@@ -161,7 +201,7 @@ def train_process(
                 loss_all_pgv = torch.sum(
                     weight_pgv_masked * gaussian_loss(mu_pgv_masked, pgv_label_masked, sigma_pgv_masked), dim=1
                 )  # [M]
-                thresh_pgv = hyper_param.get("minority_threshold_pgv", math.log10(0.15))
+                thresh_pgv = hyper_param.get("minority_threshold_pgv", math.log10(0.019))
                 if not isinstance(thresh_pgv, torch.Tensor):
                     thresh_pgv = torch.tensor(thresh_pgv, device=pgv_label_masked.device, dtype=pgv_label_masked.dtype)
                 min_mask_pgv = (pgv_label_masked.view(-1) >= thresh_pgv)
@@ -201,7 +241,7 @@ def train_process(
                     weight_pga_masked * gaussian_loss(mu_pga_masked, pga_label_masked, sigma_pga_masked), dim=1
                 )
                 # build threshold on validation tensor/device
-                thresh_pga_val = hyper_param.get("minority_threshold_pga", math.log10(0.8))
+                thresh_pga_val = hyper_param.get("minority_threshold_pga", math.log10(0.08))
                 if not isinstance(thresh_pga_val, torch.Tensor):
                     thresh_pga_val = torch.tensor(thresh_pga_val, device=pga_label_masked.device, dtype=pga_label_masked.dtype)
                 min_mask_pga = (pga_label_masked.view(-1) >= thresh_pga_val)
@@ -230,7 +270,7 @@ def train_process(
                 loss_all_pgv = torch.sum(
                     weight_pgv_masked * gaussian_loss(mu_pgv_masked, pgv_label_masked, sigma_pgv_masked), dim=1
                 )
-                thresh_pgv_val = hyper_param.get("minority_threshold_pgv", math.log10(0.15))
+                thresh_pgv_val = hyper_param.get("minority_threshold_pgv", math.log10(0.019))
                 if not isinstance(thresh_pgv_val, torch.Tensor):
                     thresh_pgv_val = torch.tensor(thresh_pgv_val, device=pgv_label_masked.device, dtype=pgv_label_masked.dtype)
                 min_mask_pgv = (pgv_label_masked.view(-1) >= thresh_pgv_val)
@@ -312,13 +352,17 @@ def train_process(
 
 if __name__ == "__main__":
     train_data_size = 0.8
-    model_index = 100
+    model_index = 125
     num_epochs = 300
     # batch_size=16
+    # Choose an intensity label once and thresholds will be derived automatically.
+    # You can also pass explicit overrides if needed.
+    chosen_intensity = "III" 
+    thr_pga_log10, thr_pgv_log10 = resolve_minority_thresholds(chosen_intensity)
     for loss_mode in ["MFE", "MSFE"]:
         for batch_size in [16]:
-            for LR in [5e-6, 2.5e-5, 5e-5]: 
-                for i in range(10):  # 原本是3
+            for LR in [5e-5]: #5e-6 used in TT-SAM
+                for i in range(5): 
                     model_index += 1
                     hyper_param = {
                         "model_index": model_index,
@@ -326,8 +370,9 @@ if __name__ == "__main__":
                         "batch_size": batch_size,
                         "learning_rate": LR, 
                         "imbalance_mode": loss_mode,  # "none", "MFE", "MSFE"
-                        "minority_threshold_pga": 0.08,
-                        "minority_threshold_pgv": 0.019
+                        # Store thresholds directly in log10 space for internal use
+                        "minority_threshold_pga": thr_pga_log10,
+                        "minority_threshold_pgv": thr_pgv_log10,
                     }
                     print(f"learning rate: {LR}")
                     print(f"batch size: {batch_size}")
@@ -390,5 +435,5 @@ if __name__ == "__main__":
                         optimizer,
                         hyper_param,
                         experiment_name="SAVANT MFE/MSFE Train",
-                        run_name=f"2nd_Train_PGA/PGV use {loss_mode} (threshold: III) : model {model_index} (learning_rate={LR}) | input:acc & vel & lowfreq | 20250905",
+                        run_name=f"3rd_Train_PGA/PGV use {loss_mode} (threshold: III) : model {model_index} (learning_rate={LR}) | input:acc & vel & lowfreq | 20250919",
                     )
