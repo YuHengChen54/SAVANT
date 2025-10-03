@@ -8,6 +8,7 @@ from mlflow import log_artifact, log_metrics, log_param, log_params
 from torch.backends import cudnn
 from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm
+from typing import Optional
 import sys
 
 sys.path.append("..")
@@ -44,9 +45,9 @@ INTENSITY_TO_THRESHOLDS = {
     "VII": {"pga": 8.000, "pgv": 1.400},
 }
 
-def resolve_minority_thresholds(intensity: str | None = None,
-                                override_pga: float | None = None,
-                                override_pgv: float | None = None):
+def resolve_minority_thresholds(intensity: Optional[str] = None,
+                                override_pga: Optional[float] = None,
+                                override_pgv: Optional[float] = None):
     """Return (log10_pga_threshold, log10_pgv_threshold).
 
     If override values are provided, use them; otherwise look up by intensity label.
@@ -352,88 +353,89 @@ def train_process(
 
 if __name__ == "__main__":
     train_data_size = 0.8
-    model_index = 125
+    model_index = 135
     num_epochs = 300
     # batch_size=16
     # Choose an intensity label once and thresholds will be derived automatically.
     # You can also pass explicit overrides if needed.
-    chosen_intensity = "III" 
-    thr_pga_log10, thr_pgv_log10 = resolve_minority_thresholds(chosen_intensity)
-    for loss_mode in ["MFE", "MSFE"]:
-        for batch_size in [16]:
-            for LR in [5e-5]: #5e-6 used in TT-SAM
-                for i in range(5): 
-                    model_index += 1
-                    hyper_param = {
-                        "model_index": model_index,
-                        "num_epochs": num_epochs,
-                        "batch_size": batch_size,
-                        "learning_rate": LR, 
-                        "imbalance_mode": loss_mode,  # "none", "MFE", "MSFE"
-                        # Store thresholds directly in log10 space for internal use
-                        "minority_threshold_pga": thr_pga_log10,
-                        "minority_threshold_pgv": thr_pgv_log10,
-                    }
-                    print(f"learning rate: {LR}")
-                    print(f"batch size: {batch_size}")
-                    num_of_gaussian = 5
-                    emb_dim = 150
-                    mlp_dims = (150, 100, 50, 30, 10)
+    intensity_list = ["II", "IV", "V-", "V+"]
+    for chosen_intensity in intensity_list:
+        thr_pga_log10, thr_pgv_log10 = resolve_minority_thresholds(chosen_intensity)
+        for loss_mode in ["MFE", "MSFE"]:
+            for batch_size in [16]:
+                for LR in [5e-5]: #5e-6 used in TT-SAM
+                    for i in range(5): 
+                        model_index += 1
+                        hyper_param = {
+                            "model_index": model_index,
+                            "num_epochs": num_epochs,
+                            "batch_size": batch_size,
+                            "learning_rate": LR, 
+                            "imbalance_mode": loss_mode,  # "none", "MFE", "MSFE"
+                            # Store thresholds directly in log10 space for internal use
+                            "minority_threshold_pga": thr_pga_log10,
+                            "minority_threshold_pgv": thr_pgv_log10,
+                        }
+                        print(f"learning rate: {LR}")
+                        print(f"batch size: {batch_size}")
+                        num_of_gaussian = 5
+                        emb_dim = 150
+                        mlp_dims = (150, 100, 50, 30, 10)
 
-                    CNN_model = CNN(downsample=3, mlp_input=7665).cuda()
-                    pos_emb_model = PositionEmbedding_Vs30(emb_dim=emb_dim).cuda()
-                    transformer_model = TransformerEncoder()
-                    mlp_model = MLP(input_shape=(emb_dim,), dims=mlp_dims).cuda()
-                    mlp_model_pga = MLP_output_pga(input_shape=(emb_dim,), dims=mlp_dims).cuda()
-                    mlp_model_pgv = MLP_output_pgv(input_shape=(emb_dim,), dims=mlp_dims).cuda()
-                    mdn_pga_model = MDN_PGA(input_shape=(mlp_dims[-1],)).cuda()
-                    mdn_pgv_model = MDN_PGV(input_shape=(mlp_dims[-1],)).cuda()
+                        CNN_model = CNN(downsample=3, mlp_input=7665).cuda()
+                        pos_emb_model = PositionEmbedding_Vs30(emb_dim=emb_dim).cuda()
+                        transformer_model = TransformerEncoder()
+                        mlp_model = MLP(input_shape=(emb_dim,), dims=mlp_dims).cuda()
+                        mlp_model_pga = MLP_output_pga(input_shape=(emb_dim,), dims=mlp_dims).cuda()
+                        mlp_model_pgv = MLP_output_pgv(input_shape=(emb_dim,), dims=mlp_dims).cuda()
+                        mdn_pga_model = MDN_PGA(input_shape=(mlp_dims[-1],)).cuda()
+                        mdn_pgv_model = MDN_PGV(input_shape=(mlp_dims[-1],)).cuda()
 
-                    full_Model = full_model(
-                        CNN_model,
-                        pos_emb_model,
-                        transformer_model,
-                        mlp_model,
-                        mlp_model_pga,
-                        mlp_model_pgv,
-                        mdn_pga_model,
-                        mdn_pgv_model,
-                        pga_targets=25,
-                        data_length=4000,
-                    )
-                    optimizer = torch.optim.Adam(
-                        [
-                            {"params": CNN_model.parameters()},
-                            {"params": transformer_model.parameters()},
-                            {"params": mlp_model.parameters()},
-                            {"params": mlp_model_pga.parameters()},
-                            {"params": mlp_model_pgv.parameters()},
-                            {"params": mdn_pga_model.parameters()},
-                            {"params": mdn_pgv_model.parameters()},
-                        ],
-                        lr=LR,
-                    )
-                    full_data = multiple_station_dataset(
-                        "../../../TT-SAM/code/data/TSMIP_1999_2019_Vs30_integral.hdf5",
-                        mode="train",
-                        mask_waveform_sec=3,
-                        weight_label=False,
-                        oversample=1.25,
-                        oversample_mag=4,
-                        test_year=2016,
-                        mask_waveform_random=True,
-                        mag_threshold=0,
-                        label_keys=["pga", "pgv"],
-                        input_type="acc",
-                        data_length_sec=20,
-                        station_blind=True,
-                        bias_to_closer_station=True,
-                    )
-                    training_loss, validation_loss = train_process(
-                        full_Model,
-                        full_data,
-                        optimizer,
-                        hyper_param,
-                        experiment_name="SAVANT MFE/MSFE Train",
-                        run_name=f"3rd_Train_PGA/PGV use {loss_mode} (threshold: III) : model {model_index} (learning_rate={LR}) | input:acc & vel & lowfreq | 20250919",
-                    )
+                        full_Model = full_model(
+                            CNN_model,
+                            pos_emb_model,
+                            transformer_model,
+                            mlp_model,
+                            mlp_model_pga,
+                            mlp_model_pgv,
+                            mdn_pga_model,
+                            mdn_pgv_model,
+                            pga_targets=25,
+                            data_length=4000,
+                        )
+                        optimizer = torch.optim.Adam(
+                            [
+                                {"params": CNN_model.parameters()},
+                                {"params": transformer_model.parameters()},
+                                {"params": mlp_model.parameters()},
+                                {"params": mlp_model_pga.parameters()},
+                                {"params": mlp_model_pgv.parameters()},
+                                {"params": mdn_pga_model.parameters()},
+                                {"params": mdn_pgv_model.parameters()},
+                            ],
+                            lr=LR,
+                        )
+                        full_data = multiple_station_dataset(
+                            "../../../TT-SAM/code/data/TSMIP_1999_2019_Vs30_integral.hdf5",
+                            mode="train",
+                            mask_waveform_sec=3,
+                            weight_label=False,
+                            oversample=1.25,
+                            oversample_mag=4,
+                            test_year=2016,
+                            mask_waveform_random=True,
+                            mag_threshold=0,
+                            label_keys=["pga", "pgv"],
+                            input_type="acc",
+                            data_length_sec=20,
+                            station_blind=True,
+                            bias_to_closer_station=True,
+                        )
+                        training_loss, validation_loss = train_process(
+                            full_Model,
+                            full_data,
+                            optimizer,
+                            hyper_param,
+                            experiment_name="SAVANT MFE/MSFE Train",
+                            run_name=f"4th_Train_PGA/PGV use {loss_mode} (threshold: {chosen_intensity}) : model {model_index} (learning_rate={LR}) | input:acc & vel & lowfreq | 20250930",
+                        )
