@@ -8,8 +8,7 @@ __pycache__/
 mlruns/
 
 # 3. model 目錄：只放行 .py
-model/*
-!model/*.py
+model_vel/*
 model_acc/*
 model_pga_pgv/*
 
