@@ -416,7 +416,7 @@ if __name__ == "__main__":
                             lr=LR,
                         )
                         full_data = multiple_station_dataset(
-                            "../../../TT-SAM/code/data/TSMIP_1999_2019_Vs30_integral.hdf5",
+                            "../data/TSMIP_1999_2019_Vs30_integral.hdf5",
                             mode="train",
                             mask_waveform_sec=3,
                             weight_label=False,

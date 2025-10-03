@@ -30,7 +30,7 @@ for mask_sec in [3, 5, 7, 10, 13, 15]:
     # label = "pga"
     # dual-target: no single label variable
     data = multiple_station_dataset(
-        "../../../TT-SAM/code/data/TSMIP_1999_2019_Vs30_integral.hdf5",
+        "../data/TSMIP_1999_2019_Vs30_integral.hdf5",
         mode="test",
         mask_waveform_sec=mask_after_sec,
         test_year=2016,
@@ -43,7 +43,7 @@ for mask_sec in [3, 5, 7, 10, 13, 15]:
     # ===========predict==============
     device = torch.device("cuda")
     # for num in [65]:
-    for num in range(101, 126):  
+    for num in range(149, 158):  
         path = f"../model_pga_pgv/model{num}_pga_pgv.pt"
         emb_dim = 150
         mlp_dims = (150, 100, 50, 30, 10)
@@ -154,7 +154,7 @@ for mask_sec in [3, 5, 7, 10, 13, 15]:
             title=f"{mask_after_sec}s True Predict Plot PGA, 2016 data model {num}"
         )
         fig_pga.savefig(f"../predict_pga_pgv/model_{num}/model {num} {mask_after_sec} sec_pga_acc.png")
-        fig_pga.close()
+        plt.close(fig_pga)
         
         # plot PGV performance
         fig_pgv, ax_pgv = Intensity_Plotter.plot_true_predicted(
@@ -166,7 +166,7 @@ for mask_sec in [3, 5, 7, 10, 13, 15]:
             title=f"{mask_after_sec}s True Predict Plot PGV, 2016 data model {num}"
         )
         fig_pgv.savefig(f"../predict_pga_pgv/model_{num}/model {num} {mask_after_sec} sec_pgv_acc.png")
-        fig_pgv.close()
+        plt.close(fig_pgv)
 
 #%%
 # # ===========merge info==============
