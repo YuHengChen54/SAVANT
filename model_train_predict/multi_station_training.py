@@ -183,7 +183,12 @@ def train_process(
                 if mode == "MFE":
                     loss_pga_new = FPE_pga + FNE_pga
                 elif mode == "MSFE":
-                    loss_pga_new = 0.5 * (FPE_pga ** 2 + FNE_pga ** 2)
+                    # 加上偏移確保正值，不影響訓練效果
+                    offset = 15.0  # 可以根據您觀察到的最小 loss 值調整
+                    FPE_shifted = FPE_pga + offset
+                    FNE_shifted = FNE_pga + offset
+                    loss_pga_new = 0.5 * (FPE_shifted ** 2 + FNE_shifted ** 2)
+                    loss_pga_new /= 100  # scale down to avoid overflow
                 else:
                     loss_pga_new = loss_pga
 
@@ -212,7 +217,12 @@ def train_process(
                 if mode == "MFE":
                     loss_pgv_new = FPE_pgv + FNE_pgv
                 elif mode == "MSFE":
-                    loss_pgv_new = 0.5 * (FPE_pgv ** 2 + FNE_pgv ** 2)
+                    # 加上偏移確保正值，不影響訓練效果
+                    offset = 15.0  # 可以根據您觀察到的最小 loss 值調整
+                    FPE_shifted = FPE_pgv + offset
+                    FNE_shifted = FNE_pgv + offset
+                    loss_pgv_new = 0.5 * (FPE_shifted ** 2 + FNE_shifted ** 2)
+                    loss_pgv_new /= 100  # scale down to avoid overflow
                 else:
                     loss_pgv_new = loss_pgv
 
@@ -252,7 +262,12 @@ def train_process(
                 if mode == "MFE":
                     loss_pga_new = vFPE_pga + vFNE_pga
                 elif mode == "MSFE":
-                    loss_pga_new = 0.5 * (vFPE_pga ** 2 + vFNE_pga ** 2)
+                    # 加上偏移確保正值，不影響訓練效果
+                    offset = 15.0  # 可以根據您觀察到的最小 loss 值調整
+                    vFPE_shifted = vFPE_pga + offset
+                    vFNE_shifted = vFNE_pga + offset
+                    loss_pga_new = 0.5 * (vFPE_shifted ** 2 + vFNE_shifted ** 2)
+                    loss_pga_new /= 100  # scale down to avoid overflow
                 else:
                     loss_pga_new = loss_pga
 
@@ -281,7 +296,12 @@ def train_process(
                 if mode == "MFE":
                     loss_pgv_new = vFPE_pgv + vFNE_pgv
                 elif mode == "MSFE":
-                    loss_pgv_new = 0.5 * (vFPE_pgv ** 2 + vFNE_pgv ** 2)
+                    # 加上偏移確保正值，不影響訓練效果
+                    offset = 15.0  
+                    vFPE_shifted = vFPE_pgv + offset
+                    vFNE_shifted = vFNE_pgv + offset
+                    loss_pgv_new = 0.5 * (vFPE_shifted ** 2 + vFNE_shifted ** 2)
+                    loss_pgv_new /= 100  # scale down to avoid overflow
                 else:
                     loss_pgv_new = loss_pgv
 
@@ -353,17 +373,17 @@ def train_process(
 
 if __name__ == "__main__":
     train_data_size = 0.8
-    model_index = 135
+    model_index = 195
     num_epochs = 300
     # batch_size=16
     # Choose an intensity label once and thresholds will be derived automatically.
     # You can also pass explicit overrides if needed.
-    intensity_list = ["II", "IV", "V-", "V+"]
+    intensity_list = ["IV", "V-", "V+"]
     for chosen_intensity in intensity_list:
         thr_pga_log10, thr_pgv_log10 = resolve_minority_thresholds(chosen_intensity)
-        for loss_mode in ["MFE", "MSFE"]:
+        for loss_mode in ["MSFE"]:
             for batch_size in [16]:
-                for LR in [5e-5]: #5e-6 used in TT-SAM
+                for LR in [5e-6]: #5e-6 used in TT-SAM
                     for i in range(5): 
                         model_index += 1
                         hyper_param = {
@@ -437,5 +457,5 @@ if __name__ == "__main__":
                             optimizer,
                             hyper_param,
                             experiment_name="SAVANT MFE/MSFE Train",
-                            run_name=f"4th_Train_PGA/PGV use {loss_mode} (threshold: {chosen_intensity}) : model {model_index} (learning_rate={LR}) | input:acc & vel & lowfreq | 20250930",
+                            run_name=f"7th_Train_PGA/PGV use {loss_mode} (threshold: {chosen_intensity}) : model {model_index} (learning_rate={LR}) | input:acc & vel & lowfreq | 20251014",
                         )
