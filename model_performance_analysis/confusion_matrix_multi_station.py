@@ -56,7 +56,7 @@ f1_curve_fig, f1_curve_ax = plt.subplots(figsize=(5,5), dpi=350)
 precision_curve_fig, precision_curve_ax = plt.subplots(figsize=(5,5), dpi=350)
 recall_curve_fig, recall_curve_ax = plt.subplots(figsize=(5,5), dpi=350)
 
-for mask_after_sec in [3, 5, 7, 10, 13]:
+for mask_after_sec in [3, 5, 7, 10]:
     data = pd.read_csv(f"{path}/{mask_after_sec} sec model{model_num} with all info_vel.csv")
 
     predict_label = data[f"predict_{label}"]
@@ -117,19 +117,10 @@ for mask_after_sec in [3, 5, 7, 10, 13]:
         real_logic = np.where(real_label > label_threshold, 1, 0)
         matrix = confusion_matrix(real_logic, predict_logic, labels=[1, 0])
 
-        TP = matrix[0][0]
-        TP_FP = np.sum(matrix, axis=0)[0]  # 預測為正的總數
-        TP_FN = np.sum(matrix, axis=1)[0]  # 真實為正的總數
-
         accuracy = np.sum(np.diag(matrix)) / np.sum(matrix)
 
-        precision = TP / TP_FP if TP_FP != 0 else 0
-        recall = TP / TP_FN if TP_FN != 0 else 0
-
-        if precision + recall == 0:
-            F1_score = 0
-        else:
-            F1_score = 2 * (precision * recall) / (precision + recall)
+        # 使用 analysis.py 的 calculate_precision_recall_f1
+        precision, recall, F1_score = Precision_Recall_Factory.calculate_precision_recall_f1(real_logic, predict_logic)
 
         performance_score[f"{label}_threshold ({unit})"].append(np.round((10**label_threshold), 3))
         performance_score["confusion matrix"].append(matrix)
