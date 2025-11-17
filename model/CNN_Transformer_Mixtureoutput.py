@@ -58,7 +58,7 @@ class CNN(nn.Module):  # input_shape -> BatchSize, Channels, Height, Width
         activation=nn.ReLU(),
         downsample=1,
         mlp_input=11665,
-        mlp_dims=(500, 300, 200, 150),
+        mlp_dims=(500, 300, 200, 100),
         eps=1e-8,
     ):
         super(CNN, self).__init__()
@@ -91,12 +91,12 @@ class CNN(nn.Module):  # input_shape -> BatchSize, Channels, Height, Width
         self.unsqueeze_layer2 = LambdaLayer(lambda t: torch.unsqueeze(t, dim=1))
 
         self.conv2d1 = nn.Sequential(
-            nn.Conv2d(1, 8, kernel_size=(1, downsample), stride=(1, downsample)),
+            nn.Conv2d(1, 8, kernel_size=(1, 3), stride=(1, 3)),
             nn.ReLU(),  # 用self.activation會有兩個ReLU
         )
 
         self.conv2d2 = nn.Sequential(
-            nn.Conv2d(8, 32, kernel_size=(16, 3), stride=(1, 3)), nn.ReLU()
+            nn.Conv2d(8, 32, kernel_size=(16, downsample), stride=(1, downsample)), nn.ReLU()
         )
 
         self.conv1d1 = nn.Sequential(nn.Conv1d(32, 64, kernel_size=16), nn.ReLU())
@@ -139,17 +139,17 @@ class CNN(nn.Module):  # input_shape -> BatchSize, Channels, Height, Width
         return output
 
 
-class CNN_feature_map(nn.Module):  # get cnn feature map to explain feature extraction
+class CNN_ACC(nn.Module): 
     def __init__(
         self,
         input_shape=(-1, 6000, 3),
         activation=nn.ReLU(),
         downsample=1,
         mlp_input=11665,
-        mlp_dims=(500, 300, 200, 150),
+        mlp_dims=(500, 300, 200, 50),
         eps=1e-8,
     ):
-        super(CNN_feature_map, self).__init__()
+        super(CNN_ACC, self).__init__()
         self.input_shape = input_shape
         self.activation = activation
         self.downsample = downsample
@@ -178,11 +178,11 @@ class CNN_feature_map(nn.Module):  # get cnn feature map to explain feature extr
         )
         self.unsqueeze_layer2 = LambdaLayer(lambda t: torch.unsqueeze(t, dim=1))
         self.conv2d1 = nn.Sequential(
-            nn.Conv2d(1, 8, kernel_size=(1, downsample), stride=(1, downsample)),
-            nn.ReLU(),  # 用self.activation會有兩個ReLU
+            nn.Conv2d(1, 8, kernel_size=(1, 3), stride=(1, 3)), # combine three dimensions
+            nn.ReLU(),  
         )
         self.conv2d2 = nn.Sequential(
-            nn.Conv2d(8, 32, kernel_size=(16, 3), stride=(1, 3)), nn.ReLU()
+            nn.Conv2d(8, 32, kernel_size=(16, downsample), stride=(1, downsample)), nn.ReLU()
         )
 
         self.conv1d1 = nn.Sequential(nn.Conv1d(32, 64, kernel_size=16), nn.ReLU())
@@ -195,7 +195,6 @@ class CNN_feature_map(nn.Module):  # get cnn feature map to explain feature extr
         self.mlp = MLP((self.mlp_input,), dims=self.mlp_dims)
 
     def forward(self, x):
-        layer_output = []
         # print("intitial shape", x.size())
         output = self.lambda_layer_1(x)
         output = self.unsqueeze_layer1(output)
@@ -205,33 +204,25 @@ class CNN_feature_map(nn.Module):  # get cnn feature map to explain feature extr
         scale = self.unsqueeze_layer2(scale)
         # print("scale after:", scale.size())
 
-        output = self.conv2d1(output)
-        layer_output.append(output)
+        output = self.conv2d1(output) 
         output = self.conv2d2(output)
-        layer_output.append(output)
         # print(output.shape)
         output = torch.squeeze(output, dim=-1)
         output = self.conv1d1(output)
-        layer_output.append(output)
         output = self.maxpooling(output)
         output = self.conv1d2(output)
-        layer_output.append(output)
         output = self.maxpooling(output)
         output = self.conv1d3(output)
-        layer_output.append(output)
         output = self.maxpooling(output)
         output = self.conv1d4(output)
-        layer_output.append(output)
         output = self.conv1d5(output)
-        layer_output.append(output)
         output = torch.flatten(output, start_dim=1)
         # print("scale:", scale.size())
         output = torch.cat((output, scale), dim=1)
         # print(output.size()[-1])
         output = self.mlp(output)
         # print("output:", output.size())
-
-        return output, layer_output
+        return output
 
 
 class PositionEmbedding(
@@ -584,6 +575,7 @@ class full_model(nn.Module):
     def __init__(
         self,
         model_CNN,
+        model_CNN_ACC,
         model_Position,
         model_Transformer,
         model_mlp,
@@ -599,6 +591,7 @@ class full_model(nn.Module):
         super(full_model, self).__init__()
         self.data_length = data_length
         self.model_CNN = model_CNN
+        self.model_CNN_ACC = model_CNN_ACC
         self.model_Position = model_Position
         self.model_Transformer = model_Transformer
         self.model_mlp = model_mlp
@@ -611,16 +604,22 @@ class full_model(nn.Module):
         self.emb_dim = emb_dim
 
     def forward(self, data):
+        vel_data = data["waveform"].float().reshape(-1, self.data_length, 9)[:, :, 3:]
+        acc_data = data["waveform"].float().reshape(-1, self.data_length, 9)[:, :, :3]
         CNN_output = self.model_CNN(
-            torch.DoubleTensor(data["waveform"].reshape(-1, self.data_length, 9))
-            .float()
-            .cuda()
+            torch.FloatTensor(vel_data).cuda()
         )
+        CNN_ACC_output = self.model_CNN_ACC(
+            torch.FloatTensor(acc_data).cuda()
+        )
+
+        CNN_combined_output = torch.cat((CNN_output, CNN_ACC_output), dim=1)
+
         CNN_output_reshape = torch.reshape(
-            CNN_output, (-1, self.max_station, self.emb_dim)
+            CNN_combined_output, (-1, self.max_station, self.emb_dim)
         )
         emb_output = self.model_Position(
-            torch.DoubleTensor(data["sta"].reshape(-1, 1, data["sta"].shape[2]))
+            torch.FloatTensor(data["sta"].float().reshape(-1, 1, data["sta"].shape[2]))
             .float()
             .cuda()
         )
@@ -630,7 +629,7 @@ class full_model(nn.Module):
         station_pad_mask = torch.all(station_pad_mask, 2)
 
         pga_pos_emb_output = self.model_Position(
-            torch.DoubleTensor(data["target"].reshape(-1, 1, data["target"].shape[2]))
+            torch.FloatTensor(data["target"].float().reshape(-1, 1, data["target"].shape[2]))
             .float()
             .cuda()
         )

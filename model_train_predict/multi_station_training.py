@@ -14,6 +14,7 @@ import sys
 sys.path.append("..")
 from model.CNN_Transformer_Mixtureoutput import (
     CNN,
+    CNN_ACC,
     MDN_PGA,
     MDN_PGV,
     MLP,
@@ -317,7 +318,7 @@ def train_process(
             # checkpoint
             if train_loss.data < -1 and (epoch + 1) % 5 == 0:
                 checkpoint_path = (
-                    f"../model_acc/model{hyper_param['model_index']}_checkpoints"
+                    f"../model_with_2_CNN/model{hyper_param['model_index']}_checkpoints"
                 )
                 if not os.path.exists(checkpoint_path):
                     os.makedirs(checkpoint_path)
@@ -358,8 +359,8 @@ def train_process(
             else:
                 print("trigger 0 time")
                 trigger_times = 0
-                path = "../model_pga_pgv"
-                model_file = f"{path}/model{hyper_param['model_index']}_pga_pgv.pt"
+                path = "../model_with_2_CNN"
+                model_file = f"{path}/model{hyper_param['model_index']}_pga.pt"
                 torch.save(full_Model.state_dict(), model_file)
                 log_artifact(model_file)
 
@@ -373,18 +374,18 @@ def train_process(
 
 if __name__ == "__main__":
     train_data_size = 0.8
-    model_index = 195
+    model_index = 6
     num_epochs = 300
     # batch_size=16
     # Choose an intensity label once and thresholds will be derived automatically.
     # You can also pass explicit overrides if needed.
-    intensity_list = ["IV", "V-", "V+"]
+    intensity_list = ["IV", "V-"]
     for chosen_intensity in intensity_list:
         thr_pga_log10, thr_pgv_log10 = resolve_minority_thresholds(chosen_intensity)
-        for loss_mode in ["MSFE"]:
+        for loss_mode in ["MSFE", "MFE"]:
             for batch_size in [16]:
-                for LR in [5e-6]: #5e-6 used in TT-SAM
-                    for i in range(5): 
+                for LR in [5e-5]: #5e-6 used in TT-SAM
+                    for i in range(3): 
                         model_index += 1
                         hyper_param = {
                             "model_index": model_index,
@@ -402,7 +403,8 @@ if __name__ == "__main__":
                         emb_dim = 150
                         mlp_dims = (150, 100, 50, 30, 10)
 
-                        CNN_model = CNN(downsample=3, mlp_input=7665).cuda()
+                        CNN_model = CNN(downsample=2, mlp_input=7665).cuda()
+                        CNN_ACC_model = CNN_ACC(downsample=1, mlp_input=7665).cuda()
                         pos_emb_model = PositionEmbedding_Vs30(emb_dim=emb_dim).cuda()
                         transformer_model = TransformerEncoder()
                         mlp_model = MLP(input_shape=(emb_dim,), dims=mlp_dims).cuda()
@@ -413,6 +415,7 @@ if __name__ == "__main__":
 
                         full_Model = full_model(
                             CNN_model,
+                            CNN_ACC_model,
                             pos_emb_model,
                             transformer_model,
                             mlp_model,
@@ -426,6 +429,7 @@ if __name__ == "__main__":
                         optimizer = torch.optim.Adam(
                             [
                                 {"params": CNN_model.parameters()},
+                                {"params": CNN_ACC_model.parameters()},
                                 {"params": transformer_model.parameters()},
                                 {"params": mlp_model.parameters()},
                                 {"params": mlp_model_pga.parameters()},
@@ -456,6 +460,7 @@ if __name__ == "__main__":
                             full_data,
                             optimizer,
                             hyper_param,
-                            experiment_name="SAVANT MFE/MSFE Train",
-                            run_name=f"7th_Train_PGA/PGV use {loss_mode} (threshold: {chosen_intensity}) : model {model_index} (learning_rate={LR}) | input:acc & vel & lowfreq | 20251014",
+                            experiment_name="SAVANT Train with two CNN acc & vel",
+                            run_name=f"1st_Train_PGA/PGV use {loss_mode} (threshold: {chosen_intensity}) : model {model_index} (learning_rate={LR}) | input:acc & vel & lowfreq | 20251105",
+                            # run_name="test"
                         )

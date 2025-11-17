@@ -5,8 +5,8 @@ from sklearn.metrics import confusion_matrix
 import os
 from analysis import Precision_Recall_Factory
 
-model_num = 76
-path = f"../predict_pga_pgv/model_{model_num}"
+model_num = 9
+path = f"../predict_with_2_CNN/model_{model_num}"
 output_path = f"{path}/model_{model_num}_analysis"
 if not os.path.isdir(output_path):
     os.mkdir(output_path)
@@ -56,9 +56,12 @@ f1_curve_fig, f1_curve_ax = plt.subplots(figsize=(5,5), dpi=350)
 precision_curve_fig, precision_curve_ax = plt.subplots(figsize=(5,5), dpi=350)
 recall_curve_fig, recall_curve_ax = plt.subplots(figsize=(5,5), dpi=350)
 
-for mask_after_sec in [3, 5, 7, 10]:
+for mask_after_sec in [3, 5, 7, 10, 13]:
     data = pd.read_csv(f"{path}/{mask_after_sec} sec model{model_num} with all info_vel.csv")
 
+    # event filter
+    # data = data.query(f"EQ_ID=={24784}")
+    
     predict_label = data[f"predict_{label}"]
     real_label = data[f"answer_{label}"]
 
@@ -102,7 +105,7 @@ for mask_after_sec in [3, 5, 7, 10]:
     intensity_confusion_matrix = confusion_matrix(
         data["predicted_intensity"], data["answer_intensity"], labels=intensity_label
     )
-    fig,ax=Precision_Recall_Factory.plot_intensity_confusion_matrix(intensity_confusion_matrix, label, strict_score,loose_score,mask_after_sec,output_path=f"../predict_pga_pgv/model_{model_num}/model_{model_num}_analysis")
+    fig,ax=Precision_Recall_Factory.plot_intensity_confusion_matrix(intensity_confusion_matrix, label, strict_score,loose_score,mask_after_sec,output_path=f"../predict_with_2_CNN/model_{model_num}/model_{model_num}_analysis")
 
     performance_score = {
         f"{label}_threshold ({unit})": [],
@@ -147,7 +150,7 @@ for mask_after_sec in [3, 5, 7, 10]:
         "F1",
         score_curve_threshold,
         mask_after_sec,
-        output_path=f"../predict_pga_pgv/model_{model_num}/model_{model_num}_analysis",
+        output_path=f"../predict_with_2_CNN/model_{model_num}/model_{model_num}_analysis",
     )
     precision_curve_fig, precision_curve_ax = Precision_Recall_Factory.plot_score_curve(
         performance_score,
@@ -157,7 +160,7 @@ for mask_after_sec in [3, 5, 7, 10]:
         "precision",
         score_curve_threshold,
         mask_after_sec,
-        output_path=f"../predict_pga_pgv/model_{model_num}/model_{model_num}_analysis",
+        output_path=f"../predict_with_2_CNN/model_{model_num}/model_{model_num}_analysis",
     )
     recall_curve_fig, recall_curve_ax = Precision_Recall_Factory.plot_score_curve(
         performance_score,
@@ -167,7 +170,7 @@ for mask_after_sec in [3, 5, 7, 10]:
         "recall",
         score_curve_threshold,
         mask_after_sec,
-        output_path=f"../predict_pga_pgv/model_{model_num}/model_{model_num}_analysis",
+        output_path=f"../predict_with_2_CNN/model_{model_num}/model_{model_num}_analysis",
     )
 
     predict_table = pd.DataFrame(performance_score)

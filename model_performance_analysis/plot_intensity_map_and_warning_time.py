@@ -4,17 +4,17 @@ import os
 from analysis import Intensity_Plotter,Warning_Time_Plotter
 
 
-model_num = 24
-mask_after_sec = 5
-label_type = "pgv"
+model_num = 9
+mask_after_sec = 13
+label_type = "pga"
 if label_type == "pga":
     label_threshold = np.log10(0.25)
-    intensity = "IV"
+    intensity = "III"
 if label_type == "pgv":
     label_threshold = np.log10(0.019)
     intensity = "III"
 
-path = f"../predict/model_{model_num}_analysis"
+path = f"../predict_with_2_CNN/model_{model_num}"
 output_path = f"{path}/events_analysis"
 if not os.path.isdir(output_path):
     os.mkdir(output_path)
@@ -41,8 +41,8 @@ for EQ_ID in [24784, 25900]:
         trace_info=event_prediction,
         eventmeta=event,
         label_type=label_type,
-        true_label=event_prediction["answer"],
-        pred_label=event_prediction["predict"],
+        true_label=event_prediction[f"answer_{label_type}"],
+        pred_label=event_prediction[f"predict_{label_type}"],
         sec=mask_after_sec,
         EQ_ID=EQ_ID,
         grid_method="linear",
@@ -53,8 +53,8 @@ for EQ_ID in [24784, 25900]:
         f"{output_path}/{EQ_ID}_{mask_after_sec}sec PGA intensity Map.png", dpi=600, bbox_inches="tight"
     )
     fig, ax = Intensity_Plotter.plot_true_predicted(
-        y_true=event_prediction["answer"],
-        y_pred=event_prediction["predict"],
+        y_true=event_prediction[f"answer_{label_type}"],
+        y_pred=event_prediction[f"predict_{label_type}"],
         agg="point",
         point_size=35,
         target=label_type,
