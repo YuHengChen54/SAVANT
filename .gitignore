@@ -23,6 +23,7 @@ data/*
 
 # 6. model_performance_analysis 目錄：只放行 .py
 model_performance_analysis/*
+!model_performance_analysis/case_study
 !model_performance_analysis/*.py
 
 # 7. model_train_predict 目錄：只放行 .py
