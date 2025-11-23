@@ -89,6 +89,7 @@ class multiple_station_dataset(Dataset):
         limit=None,
         input_type="acc",
         label_keys=["pga", "pgv"],
+        physical_feature=None,
         mask_waveform_sec=None,
         mask_waveform_random=False,
         dowmsampling=False,
@@ -326,6 +327,7 @@ class multiple_station_dataset(Dataset):
         self.pgv_label = label_keys[1]
         self.pga_labels = pga_labels
         self.pgv_labels = pgv_labels
+        self.physical_feature = physical_feature
         self.ok_events_index = ok_events_index
         self.ok_event_id = ok_event_id
         if weight_label:
@@ -373,13 +375,13 @@ class multiple_station_dataset(Dataset):
                     eventID[1]
                 ][: (self.data_length_sec * self.sampling_rate)]
 
-                # waveform_dis = f["data"][str(eventID[0])][f"dis_traces"][
-                #     eventID[1]
-                # ][: (self.data_length_sec * self.sampling_rate)]
+                physical_feature = f["data"][str(eventID[0])][f"{self.physical_feature}"][
+                    eventID[1]
+                ][: (self.data_length_sec * self.sampling_rate)]
 
                 waveform_concat = np.append(waveform_acc, waveform_vel, axis=1)
                 waveform_concat = np.append(waveform_concat, waveform_vel_lowfreq, axis=1)
-                # waveform_concat = np.append(waveform_concat, waveform_dis, axis=1)
+                waveform_concat = np.append(waveform_concat, physical_feature, axis=1)
 
                 # waveform_concat = waveform_acc
                 station_location = f["data"][str(eventID[0])]["station_location"][
