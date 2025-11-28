@@ -57,8 +57,9 @@ class Precision_Recall_Factory:
         mask_after_sec=None,
         title=None,
         output_path=None,
+        labels=None,
     ):
-        intensity = ["0", "1", "2", "3", "4", "5-", "5+", "6-", "6+", "7"]
+        intensity = labels if labels is not None else ["0", "1", "2", "3", "4", "5-", "5+", "6-", "6+", "7"]
         sn.set(rc={"figure.figsize": (8, 8)}, font_scale=1.2)  # for label size
         fig, ax = plt.subplots(dpi=350)
         sn.heatmap(
@@ -213,6 +214,67 @@ class TaiwanIntensity:
         return ticks
 
 
+class MMIntensity:
+    label = ["I", "II-III", "IV", "V", "VI", "VII", "VIII", "IX", "X"]
+    # Modified Mercalli Intensity (MMI) scale (per provided table)
+    # PGA bins in %g: <0.17 | 0.17–1.4 | 1.4–3.9 | 3.9–9.2 | 9.2–18 | 18–34 | 34–65 | 65–124 | >124
+    # Convert %g -> m/s^2 by multiplying 0.0981
+    pga = np.log10(
+        [
+            1e-5,
+            0.17 * 0.0981,
+            1.4 * 0.0981,
+            3.9 * 0.0981,
+            9.2 * 0.0981,
+            18 * 0.0981,
+            34 * 0.0981,
+            65 * 0.0981,
+            124 * 0.0981,
+        ]
+    )  # log10(m/s^2)
+    # PGV bins in cm/s: <0.1 | 0.1–1.1 | 1.1–3.4 | 3.4–8.1 | 8.1–16 | 16–31 | 31–60 | 60–116 | >116
+    # Convert cm/s -> m/s by multiplying 0.01
+    pgv = np.log10(
+        [
+            1e-5,
+            0.1 * 0.01,
+            1.1 * 0.01,
+            3.4 * 0.01,
+            8.1 * 0.01,
+            16 * 0.01,
+            31 * 0.01,
+            60 * 0.01,
+            116 * 0.01,
+        ]
+    )  # log10(m/s)
+
+    def __init__(self):
+        self.pga_ticks = self.get_ticks(self.pga)
+        self.pgv_ticks = self.get_ticks(self.pgv)
+
+    def calculate(self, pga, pgv=None, label=False):
+        pga_intensity = bisect.bisect(self.pga, pga) - 1
+        intensity = pga_intensity
+
+        if pga > self.pga[5] and pgv is not None:
+            pgv_intensity = bisect.bisect(self.pgv, pgv) - 1
+            if pgv_intensity > pga_intensity:
+                intensity = pgv_intensity
+
+        if label:
+            return self.label[intensity]
+        else:
+            return intensity
+
+    @staticmethod
+    def get_ticks(array):
+        ticks = np.cumsum(array, dtype=float)
+        ticks[2:] = ticks[2:] - ticks[:-2]
+        ticks = ticks[1:] / 2
+        ticks = np.append(ticks, (ticks[-1] * 2 - ticks[-2]))
+        return ticks
+
+
 class Intensity_Plotter:
 
     def plot_intensity_map(
@@ -231,8 +293,10 @@ class Intensity_Plotter:
         grid_method="linear",
         Pwave_vel=6.5,
         Swave_vel=3.5,
+        intensity=None,
     ):
-        intensity = TaiwanIntensity()
+        if intensity is None:
+            intensity = TaiwanIntensity()
         src_crs = ccrs.PlateCarree()
         fig, ax_map = plt.subplots(subplot_kw={"projection": src_crs}, figsize=(7, 7))
 
@@ -400,6 +464,7 @@ class Intensity_Plotter:
         axis_fontsize=20,
         point_size=2,
         target="pgv",
+        intensity=None,
         title=None,
     ):
 
@@ -417,16 +482,16 @@ class Intensity_Plotter:
             y_pred_point = y_pred
         else:
             raise ValueError(f'Aggregation type "{agg}" unknown')
-
-        intensity = TaiwanIntensity()
+        
+        if intensity is None:
+            intensity = TaiwanIntensity()
         if target == "pga":
-            intensity_threshold = intensity.pga
+            intensity_threshold = np.array(intensity.pga, copy=True)
+            # Keep TaiwanIntensity's historical lower bound tweak; leave custom scales as-is
             intensity_threshold[0] = np.log10(0.008)
-            ticks = intensity.pga_ticks
         elif target == "pgv":
-            intensity_threshold = intensity.pgv
+            intensity_threshold = np.array(intensity.pgv, copy=True)
             intensity_threshold[0] = np.log10(0.002) - (np.log10(0.002) + 5) / 2
-            ticks = intensity.pgv_ticks
 
         labels = intensity.label
         
@@ -508,7 +573,6 @@ class Intensity_Plotter:
         ax.set_yticks(intensity_threshold)
         ax.set_yticklabels([str(round(10**v, 3)) for v in intensity_threshold], fontsize = axis_fontsize - 7)
         ax.set_clip_on(True)
-
 
         if title is None:
             ax.set_title("Model prediction", fontsize=axis_fontsize + 5, pad=40)
