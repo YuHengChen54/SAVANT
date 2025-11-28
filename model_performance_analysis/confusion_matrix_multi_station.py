@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import confusion_matrix
 import os
-from analysis import Precision_Recall_Factory
+from analysis import Precision_Recall_Factory, MMIntensity
 
 model_num = 9
 path = f"../predict_with_2_CNN/model_{model_num}"
@@ -11,7 +11,10 @@ output_path = f"{path}/model_{model_num}_analysis"
 if not os.path.isdir(output_path):
     os.mkdir(output_path)
 
-label = "pga"
+label = "pgv"
+
+# Toggle: use MMI bins for confusion matrix (leave score curves unchanged)
+USE_MMI_FOR_CM = True
 
 if label == "pga":
     unit = "m/s^2"
@@ -65,15 +68,32 @@ for mask_after_sec in [3, 5, 7, 10, 13]:
     predict_label = data[f"predict_{label}"]
     real_label = data[f"answer_{label}"]
 
-    if label == "pga":
-        data["predicted_intensity"] = predict_label.apply(Precision_Recall_Factory.pga_to_intensity)
-        data["answer_intensity"] = real_label.apply(Precision_Recall_Factory.pga_to_intensity)
-    elif label == "pgv":
-        data["predicted_intensity"] = predict_label.apply(Precision_Recall_Factory.pgv_to_intensity)
-        data["answer_intensity"] = real_label.apply(Precision_Recall_Factory.pgv_to_intensity)
+    if USE_MMI_FOR_CM:
+        # Use MMI intensity bins for confusion matrix
+        mm = MMIntensity()
+        if label == "pga":
+            th = mm.pga
+        elif label == "pgv":
+            th = mm.pgv
+        # map log-values to MMI labels
+        pred_idx = np.searchsorted(th, predict_label, side="right") - 1
+        ans_idx = np.searchsorted(th, real_label, side="right") - 1
+        pred_idx = np.clip(pred_idx, 0, len(mm.label) - 1)
+        ans_idx = np.clip(ans_idx, 0, len(mm.label) - 1)
+        data["predicted_intensity"] = [mm.label[i] for i in pred_idx]
+        data["answer_intensity"] = [mm.label[i] for i in ans_idx]
+        intensity_label = mm.label
+    else:
+        # Use original Taiwan intensity bins for confusion matrix
+        if label == "pga":
+            data["predicted_intensity"] = predict_label.apply(Precision_Recall_Factory.pga_to_intensity)
+            data["answer_intensity"] = real_label.apply(Precision_Recall_Factory.pga_to_intensity)
+        elif label == "pgv":
+            data["predicted_intensity"] = predict_label.apply(Precision_Recall_Factory.pgv_to_intensity)
+            data["answer_intensity"] = real_label.apply(Precision_Recall_Factory.pgv_to_intensity)
+        intensity_label = ["0", "1", "2", "3", "4", "5-", "5+", "6-", "6+", "7"]
 
     # calculate intensity score
-    intensity_label = ["0", "1", "2", "3", "4", "5-", "5+", "6-", "6+", "7"]
     label_to_index = {label: i for i, label in enumerate(intensity_label)}
     # 將轉換後的 predicted / answer intensity label 映射成 index
     pred_index = data["predicted_intensity"].map(label_to_index)
@@ -105,7 +125,15 @@ for mask_after_sec in [3, 5, 7, 10, 13]:
     intensity_confusion_matrix = confusion_matrix(
         data["predicted_intensity"], data["answer_intensity"], labels=intensity_label
     )
-    fig,ax=Precision_Recall_Factory.plot_intensity_confusion_matrix(intensity_confusion_matrix, label, strict_score,loose_score,mask_after_sec,output_path=f"../predict_with_2_CNN/model_{model_num}/model_{model_num}_analysis")
+    fig,ax=Precision_Recall_Factory.plot_intensity_confusion_matrix(
+        intensity_confusion_matrix,
+        label,
+        strict_score,
+        loose_score,
+        mask_after_sec,
+        output_path=f"../predict_with_2_CNN/model_{model_num}/model_{model_num}_analysis",
+        labels=(intensity_label if USE_MMI_FOR_CM else intensity_label),
+    )
 
     performance_score = {
         f"{label}_threshold ({unit})": [],
