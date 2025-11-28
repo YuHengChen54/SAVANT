@@ -264,30 +264,30 @@ class CNN_Physical_features(nn.Module):
         )
         self.unsqueeze_layer2 = LambdaLayer(lambda t: torch.unsqueeze(t, dim=1))
 
-        self.conv2d1 = nn.Sequential(
-            nn.Conv2d(1, 8, kernel_size=(1, 1), stride=(1, 1)), nn.ReLU()
-        )
+        # self.conv2d1 = nn.Sequential(
+        #     nn.Conv2d(1, 8, kernel_size=(1, 1), stride=(1, 1)), nn.ReLU()
+        # )
         self.conv2d2 = nn.Sequential(
-            nn.Conv2d(8, 32, kernel_size=(16, 1), stride=(1, 1)), nn.ReLU()
+            nn.Conv2d(1, 8, kernel_size=(16, 1), stride=(1, 1)), nn.ReLU()
         )
         self.conv2d3 = nn.Sequential(
-            nn.Conv2d(32, 64, kernel_size=(16, 1), stride=(1, 1)), nn.ReLU()
+            nn.Conv2d(8, 16, kernel_size=(16, 1), stride=(1, 1)), nn.ReLU()
         )
         self.conv2d4 = nn.Sequential(
-            nn.Conv2d(64, 128, kernel_size=(16, 1), stride=(1, 1)), nn.ReLU()
+            nn.Conv2d(16, 32, kernel_size=(16, 1), stride=(1, 1)), nn.ReLU()
         )
         self.conv2d5 = nn.Sequential(
-            nn.Conv2d(128, 32, kernel_size=(8, 1), stride=(1, 1)), nn.ReLU()
-        )
-        self.conv2d6 = nn.Sequential(
             nn.Conv2d(32, 32, kernel_size=(8, 1), stride=(1, 1)), nn.ReLU()
         )
+        self.conv2d6 = nn.Sequential(
+            nn.Conv2d(32, 16, kernel_size=(8, 1), stride=(1, 1)), nn.ReLU()
+        )
         self.conv2d7 = nn.Sequential(
-            nn.Conv2d(32, 16, kernel_size=(4, 1), stride=(1, 1)), nn.ReLU()
+            nn.Conv2d(16, 16, kernel_size=(4, 1), stride=(1, 1)), nn.ReLU()
         )
-        self.conv2d8 = nn.Sequential(
-            nn.Conv2d(16, 16, kernel_size=(1, downsample), stride=(1, downsample)), nn.ReLU()
-        )
+        # self.conv2d8 = nn.Sequential(
+        #     nn.Conv2d(16, 16, kernel_size=(1, downsample), stride=(1, downsample)), nn.ReLU()
+        # )
         self.maxpooling2d = nn.MaxPool2d((2, 1))
 
         self.mlp = MLP((self.mlp_input,), dims=self.mlp_dims)
@@ -302,7 +302,7 @@ class CNN_Physical_features(nn.Module):
         scale = self.unsqueeze_layer2(scale)
         # print("scale after:", scale.size())
 
-        output = self.conv2d1(output) 
+        # output = self.conv2d1(output) 
         output = self.conv2d2(output)
         output = self.conv2d3(output)
         output = self.maxpooling2d(output)
@@ -312,7 +312,7 @@ class CNN_Physical_features(nn.Module):
         output = self.maxpooling2d(output)
         output = self.conv2d6(output)
         output = self.conv2d7(output)
-        output = self.conv2d8(output)
+        # output = self.conv2d8(output)
         output = torch.squeeze(output, dim=-1)
         output = torch.flatten(output, start_dim=1)
         # print("scale:", scale.size())
@@ -704,9 +704,9 @@ class full_model(nn.Module):
         self.emb_dim = emb_dim
 
     def forward(self, data):
-        vel_data = data["waveform"].float().reshape(-1, self.data_length, 9)[:, :, 3:9]
-        acc_data = data["waveform"].float().reshape(-1, self.data_length, 9)[:, :, :3]
-        physical_feature = data["waveform"].float().reshape(-1, self.data_length, 9)[:, :, 9:10]
+        vel_data = data["waveform"].float().reshape(-1, self.data_length, 10)[:, :, 3:9]
+        acc_data = data["waveform"].float().reshape(-1, self.data_length, 10)[:, :, :3]
+        physical_feature = data["waveform"].float().reshape(-1, self.data_length, 10)[:, :, 9:10]
         CNN_output = self.model_CNN(
             torch.FloatTensor(vel_data).cuda()
         )

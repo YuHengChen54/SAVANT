@@ -374,18 +374,18 @@ def train_process(
 
 if __name__ == "__main__":
     train_data_size = 0.8
-    model_index = 0
+    model_index = 18
     num_epochs = 300
     # batch_size=16
     physical_feature_list = [
-        "pa", 
+        # "pa", 
         # "pv", 
         # "pd", 
         # "cvaa", 
         # "cvav", 
         # "cvad", 
         # "CAV", 
-        "Ia", 
+        # "Ia", 
         "IV2", 
         "TP"
     ]
@@ -393,7 +393,7 @@ if __name__ == "__main__":
     for physical_feature in physical_feature_list:
         for chosen_intensity in intensity_list:
             thr_pga_log10, thr_pgv_log10 = resolve_minority_thresholds(chosen_intensity)
-            for loss_mode in ["MSFE", "MFE"]:
+            for loss_mode in ["MSFE"]:
                 for batch_size in [16]:
                     for LR in [5e-5]: #5e-6 used in TT-SAM
                         for i in range(3): 
@@ -476,6 +476,6 @@ if __name__ == "__main__":
                                 optimizer,
                                 hyper_param,
                                 experiment_name="SAVANT with a physical feature",
-                                run_name=f"model {model_index} | physical feature: {physical_feature} | {loss_mode} | threshold: {chosen_intensity} | 20251123",
+                                run_name=f"model {model_index} | physical feature: {physical_feature} | {loss_mode} | threshold: {chosen_intensity} | 20251127",
                                 # run_name="test"
                             )
