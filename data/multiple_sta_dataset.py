@@ -327,7 +327,13 @@ class multiple_station_dataset(Dataset):
         self.pgv_label = label_keys[1]
         self.pga_labels = pga_labels
         self.pgv_labels = pgv_labels
-        self.physical_feature = physical_feature
+        # Standardize physical_feature to list format
+        if physical_feature is None:
+            self.physical_feature = []
+        elif isinstance(physical_feature, str):
+            self.physical_feature = [physical_feature]
+        else:
+            self.physical_feature = physical_feature
         self.ok_events_index = ok_events_index
         self.ok_event_id = ok_event_id
         if weight_label:
@@ -375,13 +381,18 @@ class multiple_station_dataset(Dataset):
                     eventID[1]
                 ][: (self.data_length_sec * self.sampling_rate)]
 
-                physical_feature = f["data"][str(eventID[0])][f"{self.physical_feature}"][
-                    eventID[1]
-                ][: (self.data_length_sec * self.sampling_rate)]
-
                 waveform_concat = np.append(waveform_acc, waveform_vel, axis=1)
                 waveform_concat = np.append(waveform_concat, waveform_vel_lowfreq, axis=1)
-                waveform_concat = np.append(waveform_concat, physical_feature, axis=1)
+                
+                # Read and append multiple physical features
+                for feature_name in self.physical_feature:
+                    physical_feature = f["data"][str(eventID[0])][feature_name][
+                        eventID[1]
+                    ][: (self.data_length_sec * self.sampling_rate)]
+                    # Ensure physical_feature is 2D for concatenation
+                    if physical_feature.ndim == 1:
+                        physical_feature = np.expand_dims(physical_feature, axis=1)
+                    waveform_concat = np.append(waveform_concat, physical_feature, axis=1)
 
                 # waveform_concat = waveform_acc
                 station_location = f["data"][str(eventID[0])]["station_location"][

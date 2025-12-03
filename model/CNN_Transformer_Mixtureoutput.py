@@ -285,9 +285,9 @@ class CNN_Physical_features(nn.Module):
         self.conv2d7 = nn.Sequential(
             nn.Conv2d(16, 16, kernel_size=(4, 1), stride=(1, 1)), nn.ReLU()
         )
-        # self.conv2d8 = nn.Sequential(
-        #     nn.Conv2d(16, 16, kernel_size=(1, downsample), stride=(1, downsample)), nn.ReLU()
-        # )
+        self.conv2d8 = nn.Sequential(
+            nn.Conv2d(16, 16, kernel_size=(1, downsample), stride=(1, downsample)), nn.ReLU()
+        )
         self.maxpooling2d = nn.MaxPool2d((2, 1))
 
         self.mlp = MLP((self.mlp_input,), dims=self.mlp_dims)
@@ -312,7 +312,7 @@ class CNN_Physical_features(nn.Module):
         output = self.maxpooling2d(output)
         output = self.conv2d6(output)
         output = self.conv2d7(output)
-        # output = self.conv2d8(output)
+        output = self.conv2d8(output)
         output = torch.squeeze(output, dim=-1)
         output = torch.flatten(output, start_dim=1)
         # print("scale:", scale.size())
@@ -704,9 +704,9 @@ class full_model(nn.Module):
         self.emb_dim = emb_dim
 
     def forward(self, data):
-        vel_data = data["waveform"].float().reshape(-1, self.data_length, 10)[:, :, 3:9]
-        acc_data = data["waveform"].float().reshape(-1, self.data_length, 10)[:, :, :3]
-        physical_feature = data["waveform"].float().reshape(-1, self.data_length, 10)[:, :, 9:10]
+        vel_data = data["waveform"].float().reshape(-1, self.data_length, 18)[:, :, 3:9]
+        acc_data = data["waveform"].float().reshape(-1, self.data_length, 18)[:, :, :3]
+        physical_feature = data["waveform"].float().reshape(-1, self.data_length, 18)[:, :, 9:]
         CNN_output = self.model_CNN(
             torch.FloatTensor(vel_data).cuda()
         )

@@ -5,8 +5,8 @@ from sklearn.metrics import confusion_matrix
 import os
 from analysis import Precision_Recall_Factory, MMIntensity
 
-model_num = 9
-path = f"../predict_with_2_CNN/model_{model_num}"
+model_num = 37
+path = f"../predict_with_a_physical_feature/model_{model_num}"
 output_path = f"{path}/model_{model_num}_analysis"
 if not os.path.isdir(output_path):
     os.mkdir(output_path)
@@ -14,7 +14,7 @@ if not os.path.isdir(output_path):
 label = "pgv"
 
 # Toggle: use MMI bins for confusion matrix (leave score curves unchanged)
-USE_MMI_FOR_CM = True
+USE_MMI_FOR_CM = False
 
 if label == "pga":
     unit = "m/s^2"
@@ -131,7 +131,7 @@ for mask_after_sec in [3, 5, 7, 10, 13]:
         strict_score,
         loose_score,
         mask_after_sec,
-        output_path=f"../predict_with_2_CNN/model_{model_num}/model_{model_num}_analysis",
+        output_path=output_path,
         labels=(intensity_label if USE_MMI_FOR_CM else intensity_label),
     )
 
@@ -178,7 +178,7 @@ for mask_after_sec in [3, 5, 7, 10, 13]:
         "F1",
         score_curve_threshold,
         mask_after_sec,
-        output_path=f"../predict_with_2_CNN/model_{model_num}/model_{model_num}_analysis",
+        output_path=output_path,
     )
     precision_curve_fig, precision_curve_ax = Precision_Recall_Factory.plot_score_curve(
         performance_score,
@@ -188,7 +188,7 @@ for mask_after_sec in [3, 5, 7, 10, 13]:
         "precision",
         score_curve_threshold,
         mask_after_sec,
-        output_path=f"../predict_with_2_CNN/model_{model_num}/model_{model_num}_analysis",
+        output_path=output_path,
     )
     recall_curve_fig, recall_curve_ax = Precision_Recall_Factory.plot_score_curve(
         performance_score,
@@ -198,7 +198,7 @@ for mask_after_sec in [3, 5, 7, 10, 13]:
         "recall",
         score_curve_threshold,
         mask_after_sec,
-        output_path=f"../predict_with_2_CNN/model_{model_num}/model_{model_num}_analysis",
+        output_path=output_path,
     )
 
     predict_table = pd.DataFrame(performance_score)
