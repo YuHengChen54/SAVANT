@@ -5,8 +5,9 @@ __pycache__/
 *.log
 
 # 2. MLflow 實驗追蹤目錄
-mlruns/
-mlartifacts/
+ablation_study/*
+mlruns/*
+mlartifacts/*
 
 # 3. model 目錄：只放行 .py
 model_vel/*
@@ -43,4 +44,4 @@ predict_with_a_physical_feature/*
 Thumbs.db
 
 # 10. VSCode 設定
-.vscode/
+.vscode/*
