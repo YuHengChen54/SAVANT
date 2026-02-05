@@ -228,10 +228,10 @@ class CNN_ACC(nn.Module):
 class CNN_Physical_features(nn.Module): 
     def __init__(
         self,
-        input_shape=(-1, 6000, 3),
+        input_shape=(-1, 4000, 3),
         activation=nn.ReLU(),
         downsample=1,
-        mlp_input=11665,
+        mlp_input=7665,
         mlp_dims=(500, 300, 200, 50),
         eps=1e-8,
     ):
@@ -254,7 +254,6 @@ class CNN_Physical_features(nn.Module):
                 + self.eps
             )
         )
-        self.unsqueeze_layer1 = LambdaLayer(lambda t: torch.unsqueeze(t, dim=1))
         self.lambda_layer_2 = LambdaLayer(
             lambda t: torch.log(
                 torch.max(torch.max(torch.abs(t), dim=1).values, dim=1).values
@@ -264,56 +263,56 @@ class CNN_Physical_features(nn.Module):
         )
         self.unsqueeze_layer2 = LambdaLayer(lambda t: torch.unsqueeze(t, dim=1))
 
-        # self.conv2d1 = nn.Sequential(
-        #     nn.Conv2d(1, 8, kernel_size=(1, 1), stride=(1, 1)), nn.ReLU()
-        # )
-        self.conv2d2 = nn.Sequential(
-            nn.Conv2d(1, 8, kernel_size=(16, 1), stride=(1, 1)), nn.ReLU()
+        self.conv1d1 = nn.Sequential(
+            nn.Conv1d(downsample, downsample*8, kernel_size=1, stride=1, groups=downsample), nn.ReLU()
         )
-        self.conv2d3 = nn.Sequential(
-            nn.Conv2d(8, 16, kernel_size=(16, 1), stride=(1, 1)), nn.ReLU()
+        self.conv1d2 = nn.Sequential(
+            nn.Conv1d(downsample*8, downsample*32, kernel_size=16, stride=1, groups=downsample), nn.ReLU()
         )
-        self.conv2d4 = nn.Sequential(
-            nn.Conv2d(16, 32, kernel_size=(16, 1), stride=(1, 1)), nn.ReLU()
+        self.conv1d3 = nn.Sequential(
+            nn.Conv1d(downsample*32, downsample*64, kernel_size=16, stride=1, groups=downsample), nn.ReLU()
         )
-        self.conv2d5 = nn.Sequential(
-            nn.Conv2d(32, 32, kernel_size=(8, 1), stride=(1, 1)), nn.ReLU()
+        self.conv1d4 = nn.Sequential(
+            nn.Conv1d(downsample*64, downsample*128, kernel_size=16, stride=1, groups=downsample), nn.ReLU()
         )
-        self.conv2d6 = nn.Sequential(
-            nn.Conv2d(32, 16, kernel_size=(8, 1), stride=(1, 1)), nn.ReLU()
+        self.conv1d5 = nn.Sequential(
+            nn.Conv1d(downsample*128, downsample*32, kernel_size=8, stride=1, groups=downsample), nn.ReLU()
         )
-        self.conv2d7 = nn.Sequential(
-            nn.Conv2d(16, 16, kernel_size=(4, 1), stride=(1, 1)), nn.ReLU()
+        self.conv1d6 = nn.Sequential(
+            nn.Conv1d(downsample*32, downsample*32, kernel_size=8, stride=1, groups=downsample), nn.ReLU()
         )
-        self.conv2d8 = nn.Sequential(
-            nn.Conv2d(16, 16, kernel_size=(1, downsample), stride=(1, downsample)), nn.ReLU()
+        self.conv1d7 = nn.Sequential(
+            nn.Conv1d(downsample*32, downsample*16, kernel_size=4, stride=1, groups=downsample), nn.ReLU()
         )
-        self.maxpooling2d = nn.MaxPool2d((2, 1))
+        self.fuse = nn.Sequential(
+            nn.Conv1d(downsample*16, 16, kernel_size=1, stride=1, groups=1), nn.ReLU()
+        )
+        self.maxpooling = nn.MaxPool1d(2)
 
         self.mlp = MLP((self.mlp_input,), dims=self.mlp_dims)
 
     def forward(self, x):
         # print("intitial shape", x.size())
         output = self.lambda_layer_1(x)
-        output = self.unsqueeze_layer1(output)
 
         scale = self.lambda_layer_2(x)
         # print("scale before:", scale.size())
         scale = self.unsqueeze_layer2(scale)
         # print("scale after:", scale.size())
 
+        output = output.permute(0, 2, 1).contiguous()
         # output = self.conv2d1(output) 
-        output = self.conv2d2(output)
-        output = self.conv2d3(output)
-        output = self.maxpooling2d(output)
-        output = self.conv2d4(output)
-        output = self.maxpooling2d(output)
-        output = self.conv2d5(output)
-        output = self.maxpooling2d(output)
-        output = self.conv2d6(output)
-        output = self.conv2d7(output)
-        output = self.conv2d8(output)
-        output = torch.squeeze(output, dim=-1)
+        output = self.conv1d1(output)
+        output = self.conv1d2(output)
+        output = self.conv1d3(output)
+        output = self.maxpooling(output)
+        output = self.conv1d4(output)
+        output = self.maxpooling(output)
+        output = self.conv1d5(output)
+        output = self.maxpooling(output)
+        output = self.conv1d6(output)
+        output = self.conv1d7(output)
+        output = self.fuse(output)
         output = torch.flatten(output, start_dim=1)
         # print("scale:", scale.size())
         output = torch.cat((output, scale), dim=1)
@@ -704,9 +703,9 @@ class full_model(nn.Module):
         self.emb_dim = emb_dim
 
     def forward(self, data):
-        vel_data = data["waveform"].float().reshape(-1, self.data_length, 18)[:, :, 3:9]
-        acc_data = data["waveform"].float().reshape(-1, self.data_length, 18)[:, :, :3]
-        physical_feature = data["waveform"].float().reshape(-1, self.data_length, 18)[:, :, 9:]
+        vel_data = data["waveform"].float().reshape(-1, self.data_length, 10)[:, :, 3:9]
+        acc_data = data["waveform"].float().reshape(-1, self.data_length, 10)[:, :, :3]
+        physical_feature = data["waveform"].float().reshape(-1, self.data_length, 10)[:, :, 9:]
         CNN_output = self.model_CNN(
             torch.FloatTensor(vel_data).cuda()
         )
