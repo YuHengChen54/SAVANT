@@ -28,44 +28,39 @@ from data.multiple_sta_dataset import multiple_station_dataset
 from model_performance_analysis.analysis import Intensity_Plotter
 from model_performance_analysis.analysis import MMIntensity
 
-physical_feature_list = [
-        "pa", 
-        "pv", 
-        "pd", 
-        "cvaa", 
-        "cvav", 
-        "cvad", 
-        # "CAV", 
-        "Ia", 
-        "IV2", 
-        "TP"
-    ]
-for mask_sec in [3, 5, 7, 10, 13, 15]:
-    mask_after_sec = mask_sec
-    # label = "pga"
-    # dual-target: no single label variable
-    data = multiple_station_dataset(
-        "../data/TSMIP_1999_2019_Vs30_integral.hdf5",
-        mode="test",
-        mask_waveform_sec=mask_after_sec,
-        test_year=2016,
-        # label_key=label,
-        # use default label_keys=["pga","pgv"]
-        physical_feature=physical_feature_list,
-        mag_threshold=0,
-        input_type="acc",
-        data_length_sec=20,
-    )
-    # ===========predict==============
-    device = torch.device("cuda")
-    # for num in [14]:
-    for num in range(35, 39):  
+model_num = np.arange(31, 93)
+physical_feature_list = np.repeat(
+    ["pa", "pv", "pd", "cvaa", "cvav", "cvad", "CAV", "Ia", "IV2", "TP"],
+    [6, 6, 6, 8, 6, 6, 6, 6, 6, 6]
+)
+model_feature_pairs = list(zip(model_num, physical_feature_list))
+
+# ===========predict==============
+# for num in [14]:
+for num, physical_feature in model_feature_pairs:  
+    print(f"Processing model {num} with physical feature {physical_feature}...")
+    for mask_sec in [3, 5, 7, 10, 13, 15]:
+        mask_after_sec = mask_sec
+        # label = "pga"
+        # dual-target: no single label variable
+        device = torch.device("cuda")
+        data = multiple_station_dataset(
+            "../data/TSMIP_1999_2019_Vs30_integral.hdf5",
+            mode="test",
+            mask_waveform_sec=mask_after_sec,
+            test_year=2016,
+            # use default label_keys=["pga","pgv"]
+            physical_feature=physical_feature,
+            mag_threshold=0,
+            input_type="acc",
+            data_length_sec=20,
+        )
         path = f"../model_with_a_physical_feature/model{num}_pga.pt"
         emb_dim = 150
         mlp_dims = (150, 100, 50, 30, 10)
         CNN_model = CNN(downsample=2, mlp_input=7665).cuda()
         CNN_ACC_model = CNN_ACC(downsample=1, mlp_input=7665).cuda()
-        CNN_Physical_model = CNN_Physical_features(downsample=len(physical_feature_list), mlp_input=7665).cuda()
+        CNN_Physical_model = CNN_Physical_features(downsample=1, mlp_input=7665).cuda()
         pos_emb_model = PositionEmbedding_Vs30(emb_dim=emb_dim).cuda()
         transformer_model = TransformerEncoder()
         mlp_model = MLP(input_shape=(emb_dim,), dims=mlp_dims).cuda()
