@@ -38,6 +38,7 @@ predict_acc/*
 predict_pga_pgv/*
 predict_with_2_CNN/*
 predict_with_a_physical_feature/*
+predict_with_several_physical_feature/*
 
 # 9. 系統產生的隱藏檔
 .DS_Store
