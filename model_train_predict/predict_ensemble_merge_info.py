@@ -14,7 +14,6 @@ sys.path.append("..")
 from model.CNN_Transformer_Mixtureoutput import (
     CNN,
     CNN_ACC,
-    CNN_Physical_features, 
     MDN_PGA,
     MDN_PGV,
     MLP_output_pga,
@@ -39,7 +38,6 @@ for mask_sec in [3, 5, 7, 10, 13, 15]:
         test_year=2016,
         # label_key=label,
         # use default label_keys=["pga","pgv"]
-        physical_feature="Ia",
         mag_threshold=0,
         input_type="acc",
         data_length_sec=20,
@@ -47,13 +45,12 @@ for mask_sec in [3, 5, 7, 10, 13, 15]:
     # ===========predict==============
     device = torch.device("cuda")
     # for num in [14]:
-    for num in range(13, 19):  
-        path = f"../model_with_a_physical_feature/model{num}_pga.pt"
+    for num in range(21, 33):  
+        path = f"../model_with_2_CNN/model{num}_pga.pt"
         emb_dim = 150
         mlp_dims = (150, 100, 50, 30, 10)
-        CNN_model = CNN(downsample=2, mlp_input=7665).cuda()
-        CNN_ACC_model = CNN_ACC(downsample=1, mlp_input=7665).cuda()
-        CNN_Physical_model = CNN_Physical_features(downsample=1, mlp_input=7665).cuda()
+        CNN_model = CNN(mlp_input=7665).cuda()
+        CNN_ACC_model = CNN_ACC(mlp_input=7665).cuda()
         pos_emb_model = PositionEmbedding_Vs30(emb_dim=emb_dim).cuda()
         transformer_model = TransformerEncoder()
         mlp_model = MLP(input_shape=(emb_dim,), dims=mlp_dims).cuda()
@@ -64,7 +61,6 @@ for mask_sec in [3, 5, 7, 10, 13, 15]:
         full_Model = full_model(
             CNN_model,
             CNN_ACC_model,
-            CNN_Physical_model,
             pos_emb_model,
             transformer_model,
             mlp_model,
@@ -143,12 +139,12 @@ for mask_sec in [3, 5, 7, 10, 13, 15]:
         # filter out zero labels
         output_df = output_df[(output_df["answer_pga"] != 0) | (output_df["answer_pgv"] != 0)]
         
-        os.makedirs(f"../predict_with_a_physical_feature/model_{num}", exist_ok=True)
+        os.makedirs(f"../predict_with_2_CNN/model_{num}_conv1d", exist_ok=True)
         output_df.to_csv(
-            f"../predict_with_a_physical_feature/model_{num}/model {num} {mask_after_sec} sec prediction_vel.csv", index=False
+            f"../predict_with_2_CNN/model_{num}_conv1d/model {num} {mask_after_sec} sec prediction_vel.csv", index=False
         )
 
-        output_df = pd.read_csv(f"C:\\Users\\USER\\Desktop\\SAVANT\\code\\predict_with_a_physical_feature\\model_14\\model 14 13 sec prediction_vel.csv")
+        # output_df = pd.read_csv(f"C:\\Users\\USER\\Desktop\\SAVANT\\code\\predict_with_2_CNN\\model_14\\model 14 13 sec prediction_vel.csv")
 
         # plot prediction results
 
@@ -162,8 +158,8 @@ for mask_sec in [3, 5, 7, 10, 13, 15]:
             intensity=MMIntensity(), 
             title=f"{mask_after_sec}s True Predict Plot PGA, 2016 data model {num}"
         )
-        # fig_pga.savefig(f"../predict_with_a_physical_feature/model_{num}/model {num} {mask_after_sec} sec_pga_acc.png")
-        # plt.close(fig_pga)
+        fig_pga.savefig(f"../predict_with_2_CNN/model_{num}_conv1d/model {num} {mask_after_sec} sec_pga_acc.png")
+        plt.close(fig_pga)
         
         # plot PGV performance
         fig_pgv, ax_pgv = Intensity_Plotter.plot_true_predicted(
@@ -175,8 +171,8 @@ for mask_sec in [3, 5, 7, 10, 13, 15]:
             intensity=MMIntensity(), 
             title=f"{mask_after_sec}s True Predict Plot PGV, 2016 data model {num}"
         )
-        # fig_pgv.savefig(f"../predict_with_a_physical_feature/model_{num}/model {num} {mask_after_sec} sec_pgv_acc.png")
-        # plt.close(fig_pgv)
+        fig_pgv.savefig(f"../predict_with_2_CNN/model_{num}_conv1d/model {num} {mask_after_sec} sec_pgv_acc.png")
+        plt.close(fig_pgv)
 
 #%%
 # ===========merge info==============

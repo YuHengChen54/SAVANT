@@ -374,7 +374,7 @@ def train_process(
 
 if __name__ == "__main__":
     train_data_size = 0.8
-    model_index = 6
+    model_index = 20
     num_epochs = 300
     # batch_size=16
     # Choose an intensity label once and thresholds will be derived automatically.
@@ -382,8 +382,8 @@ if __name__ == "__main__":
     intensity_list = ["IV", "V-"]
     for chosen_intensity in intensity_list:
         thr_pga_log10, thr_pgv_log10 = resolve_minority_thresholds(chosen_intensity)
-        for loss_mode in ["MSFE", "MFE"]:
-            for batch_size in [16]:
+        for loss_mode in ["MSFE"]:
+            for batch_size in [8, 16]:
                 for LR in [5e-5]: #5e-6 used in TT-SAM
                     for i in range(3): 
                         model_index += 1
@@ -403,8 +403,8 @@ if __name__ == "__main__":
                         emb_dim = 150
                         mlp_dims = (150, 100, 50, 30, 10)
 
-                        CNN_model = CNN(downsample=2, mlp_input=7665).cuda()
-                        CNN_ACC_model = CNN_ACC(downsample=1, mlp_input=7665).cuda()
+                        CNN_model = CNN(mlp_input=7665).cuda()
+                        CNN_ACC_model = CNN_ACC(mlp_input=7665).cuda()
                         pos_emb_model = PositionEmbedding_Vs30(emb_dim=emb_dim).cuda()
                         transformer_model = TransformerEncoder()
                         mlp_model = MLP(input_shape=(emb_dim,), dims=mlp_dims).cuda()
@@ -461,6 +461,6 @@ if __name__ == "__main__":
                             optimizer,
                             hyper_param,
                             experiment_name="SAVANT Train with two CNN acc & vel",
-                            run_name=f"1st_Train_PGA/PGV use {loss_mode} (threshold: {chosen_intensity}) : model {model_index} (learning_rate={LR}) | input:acc & vel & lowfreq | 20251105",
+                            run_name=f"Change Conv1d in CNN & CNN_ACC | Use {loss_mode} (threshold: {chosen_intensity}) : model {model_index} (learning_rate={LR}) | 20260311",
                             # run_name="test"
                         )

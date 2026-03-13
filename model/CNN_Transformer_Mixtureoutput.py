@@ -56,7 +56,6 @@ class CNN(nn.Module):  # input_shape -> BatchSize, Channels, Height, Width
         self,
         input_shape=(-1, 6000, 3),
         activation=nn.ReLU(),
-        downsample=1,
         mlp_input=11665,
         mlp_dims=(500, 300, 200, 100),
         eps=1e-8,
@@ -64,7 +63,6 @@ class CNN(nn.Module):  # input_shape -> BatchSize, Channels, Height, Width
         super(CNN, self).__init__()
         self.input_shape = input_shape
         self.activation = activation
-        self.downsample = downsample
         self.mlp_input = mlp_input
         self.mlp_dims = mlp_dims
         self.eps = eps
@@ -90,13 +88,14 @@ class CNN(nn.Module):  # input_shape -> BatchSize, Channels, Height, Width
         )
         self.unsqueeze_layer2 = LambdaLayer(lambda t: torch.unsqueeze(t, dim=1))
 
-        self.conv2d1 = nn.Sequential(
-            nn.Conv2d(1, 8, kernel_size=(1, 3), stride=(1, 3)),
-            nn.ReLU(),  # 用self.activation會有兩個ReLU
+        # Grouped 1D front-end (for 6-channel velocity input)
+        self.conv1d1_new = nn.Sequential(
+            nn.Conv1d(in_channels=6, out_channels=8, kernel_size=1, stride=1, groups=2),
+            nn.ReLU(),
         )
-
-        self.conv2d2 = nn.Sequential(
-            nn.Conv2d(8, 32, kernel_size=(16, downsample), stride=(1, downsample)), nn.ReLU()
+        self.conv1d2_new = nn.Sequential(
+            nn.Conv1d(in_channels=8, out_channels=32, kernel_size=16, stride=1),
+            nn.ReLU(),
         )
 
         self.conv1d1 = nn.Sequential(nn.Conv1d(32, 64, kernel_size=16), nn.ReLU())
@@ -111,17 +110,16 @@ class CNN(nn.Module):  # input_shape -> BatchSize, Channels, Height, Width
     def forward(self, x):
         # print("intitial shape", x.size())
         output = self.lambda_layer_1(x)
-        output = self.unsqueeze_layer1(output)
 
         scale = self.lambda_layer_2(x)
         # print("scale before:", scale.size())
         scale = self.unsqueeze_layer2(scale)
         # print("scale after:", scale.size())
 
-        output = self.conv2d1(output) 
-        output = self.conv2d2(output)
-        # print(output.shape)
-        output = torch.squeeze(output, dim=-1)
+        # (B, T, C) -> (B, C, T)
+        output = output.permute(0, 2, 1).contiguous()
+        output = self.conv1d1_new(output)
+        output = self.conv1d2_new(output)
         output = self.conv1d1(output)
         output = self.maxpooling(output)
         output = self.conv1d2(output)
@@ -144,7 +142,6 @@ class CNN_ACC(nn.Module):
         self,
         input_shape=(-1, 6000, 3),
         activation=nn.ReLU(),
-        downsample=1,
         mlp_input=11665,
         mlp_dims=(500, 300, 200, 50),
         eps=1e-8,
@@ -152,7 +149,6 @@ class CNN_ACC(nn.Module):
         super(CNN_ACC, self).__init__()
         self.input_shape = input_shape
         self.activation = activation
-        self.downsample = downsample
         self.mlp_input = mlp_input
         self.mlp_dims = mlp_dims
         self.eps = eps
@@ -177,12 +173,14 @@ class CNN_ACC(nn.Module):
             / 100
         )
         self.unsqueeze_layer2 = LambdaLayer(lambda t: torch.unsqueeze(t, dim=1))
-        self.conv2d1 = nn.Sequential(
-            nn.Conv2d(1, 8, kernel_size=(1, 3), stride=(1, 3)), # combine three dimensions
-            nn.ReLU(),  
+        # 1D front-end for 3-channel acceleration input
+        self.conv1d1_new = nn.Sequential(
+            nn.Conv1d(in_channels=3, out_channels=8, kernel_size=1, stride=1),
+            nn.ReLU(),
         )
-        self.conv2d2 = nn.Sequential(
-            nn.Conv2d(8, 32, kernel_size=(16, downsample), stride=(1, downsample)), nn.ReLU()
+        self.conv1d2_new = nn.Sequential(
+            nn.Conv1d(in_channels=8, out_channels=32, kernel_size=16, stride=1),
+            nn.ReLU(),
         )
 
         self.conv1d1 = nn.Sequential(nn.Conv1d(32, 64, kernel_size=16), nn.ReLU())
@@ -197,17 +195,16 @@ class CNN_ACC(nn.Module):
     def forward(self, x):
         # print("intitial shape", x.size())
         output = self.lambda_layer_1(x)
-        output = self.unsqueeze_layer1(output)
 
         scale = self.lambda_layer_2(x)
         # print("scale before:", scale.size())
         scale = self.unsqueeze_layer2(scale)
         # print("scale after:", scale.size())
 
-        output = self.conv2d1(output) 
-        output = self.conv2d2(output)
-        # print(output.shape)
-        output = torch.squeeze(output, dim=-1)
+        # (B, T, C) -> (B, C, T)
+        output = output.permute(0, 2, 1).contiguous()
+        output = self.conv1d1_new(output)
+        output = self.conv1d2_new(output)
         output = self.conv1d1(output)
         output = self.maxpooling(output)
         output = self.conv1d2(output)
