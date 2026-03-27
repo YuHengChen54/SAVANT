@@ -57,7 +57,7 @@ class CNN(nn.Module):  # input_shape -> BatchSize, Channels, Height, Width
         input_shape=(-1, 6000, 3),
         activation=nn.ReLU(),
         mlp_input=11665,
-        mlp_dims=(500, 300, 200, 100),
+        mlp_dims=(500, 300, 200, 50),
         eps=1e-8,
     ):
         super(CNN, self).__init__()
@@ -261,28 +261,28 @@ class CNN_Physical_features(nn.Module):
         self.unsqueeze_layer2 = LambdaLayer(lambda t: torch.unsqueeze(t, dim=1))
 
         self.conv1d1 = nn.Sequential(
-            nn.Conv1d(downsample, downsample*8, kernel_size=1, stride=1, groups=downsample), nn.ReLU()
+            nn.Conv1d(downsample, downsample*4, kernel_size=1, stride=1, groups=downsample), nn.ReLU()
         )
         self.conv1d2 = nn.Sequential(
-            nn.Conv1d(downsample*8, downsample*32, kernel_size=16, stride=1, groups=downsample), nn.ReLU()
+            nn.Conv1d(downsample*4, downsample*16, kernel_size=16, stride=1, groups=downsample), nn.ReLU()
         )
         self.conv1d3 = nn.Sequential(
-            nn.Conv1d(downsample*32, downsample*64, kernel_size=16, stride=1, groups=downsample), nn.ReLU()
+            nn.Conv1d(downsample*16, downsample*32, kernel_size=16, stride=1, groups=downsample), nn.ReLU()
         )
         self.conv1d4 = nn.Sequential(
-            nn.Conv1d(downsample*64, downsample*128, kernel_size=16, stride=1, groups=downsample), nn.ReLU()
+            nn.Conv1d(downsample*32, downsample*64, kernel_size=16, stride=1, groups=downsample), nn.ReLU()
         )
         self.conv1d5 = nn.Sequential(
-            nn.Conv1d(downsample*128, downsample*32, kernel_size=8, stride=1, groups=downsample), nn.ReLU()
+            nn.Conv1d(downsample*64, downsample*16, kernel_size=8, stride=1, groups=downsample), nn.ReLU()
         )
         self.conv1d6 = nn.Sequential(
-            nn.Conv1d(downsample*32, downsample*32, kernel_size=8, stride=1, groups=downsample), nn.ReLU()
+            nn.Conv1d(downsample*16, downsample*8, kernel_size=8, stride=1, groups=downsample), nn.ReLU()
         )
         self.conv1d7 = nn.Sequential(
-            nn.Conv1d(downsample*32, downsample*16, kernel_size=4, stride=1, groups=downsample), nn.ReLU()
+            nn.Conv1d(downsample*8, downsample*4, kernel_size=4, stride=1, groups=downsample), nn.ReLU()
         )
         self.fuse = nn.Sequential(
-            nn.Conv1d(downsample*16, 16, kernel_size=1, stride=1, groups=1), nn.ReLU()
+            nn.Conv1d(downsample*4, 16, kernel_size=1, stride=1, groups=1), nn.ReLU()
         )
         self.maxpooling = nn.MaxPool1d(2)
 
@@ -551,7 +551,12 @@ class TransformerEncoder(nn.Module):
             dropout=dropout,
             dim_feedforward=dim_feedforward,
         ).cuda()
-        self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, 6).cuda()
+        try:
+            self.transformer_encoder = nn.TransformerEncoder(
+                self.encoder_layer, 6, enable_nested_tensor=False
+            ).cuda()
+        except TypeError:
+            self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, 6).cuda()
 
     def forward(self, x, src_key_padding_mask=None):
         out = self.transformer_encoder(x, src_key_padding_mask=src_key_padding_mask)
@@ -700,9 +705,12 @@ class full_model(nn.Module):
         self.emb_dim = emb_dim
 
     def forward(self, data):
-        vel_data = data["waveform"].float().reshape(-1, self.data_length, 10)[:, :, 3:9]
-        acc_data = data["waveform"].float().reshape(-1, self.data_length, 10)[:, :, :3]
-        physical_feature = data["waveform"].float().reshape(-1, self.data_length, 10)[:, :, 9:]
+        waveform = data["waveform"].float().reshape(
+            -1, self.data_length, data["waveform"].shape[-1]
+        )
+        vel_data = waveform[:, :, 3:9]
+        acc_data = waveform[:, :, :3]
+        physical_feature = waveform[:, :, 9:]
         CNN_output = self.model_CNN(
             torch.FloatTensor(vel_data).cuda()
         )

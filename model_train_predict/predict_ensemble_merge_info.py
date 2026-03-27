@@ -28,17 +28,30 @@ from data.multiple_sta_dataset import multiple_station_dataset
 from model_performance_analysis.analysis import Intensity_Plotter
 from model_performance_analysis.analysis import MMIntensity
 
-model_num = np.arange(31, 93)
-physical_feature_list = np.repeat(
-    ["pa", "pv", "pd", "cvaa", "cvav", "cvad", "CAV", "Ia", "IV2", "TP"],
-    [6, 6, 6, 8, 6, 6, 6, 6, 6, 6]
-)
-model_feature_pairs = list(zip(model_num, physical_feature_list))
+if torch.cuda.is_available():
+    # Force classic SDP math kernel to reduce eval-time fastpath drift.
+    torch.backends.cuda.enable_flash_sdp(False)
+    torch.backends.cuda.enable_mem_efficient_sdp(False)
+    torch.backends.cuda.enable_math_sdp(True)
+
+if hasattr(torch.backends, "transformers") and hasattr(torch.backends.transformers, "nested_tensor"):
+    torch.backends.transformers.nested_tensor = False
+
+physical_feature_list = [
+        "pa", 
+        "pv", 
+        "pd", 
+        "cvaa", 
+        "cvav", 
+        "cvad", 
+        "CAV", 
+        "Ia", 
+        "IV2", 
+        "TP"
+    ]
 
 # ===========predict==============
-# for num in [14]:
-for num, physical_feature in model_feature_pairs:  
-    print(f"Processing model {num} with physical feature {physical_feature}...")
+for num in range(7, 8): 
     for mask_sec in [3, 5, 7, 10, 13, 15]:
         mask_after_sec = mask_sec
         # label = "pga"
@@ -50,17 +63,17 @@ for num, physical_feature in model_feature_pairs:
             mask_waveform_sec=mask_after_sec,
             test_year=2016,
             # use default label_keys=["pga","pgv"]
-            physical_feature=physical_feature,
+            physical_feature=physical_feature_list,
             mag_threshold=0,
             input_type="acc",
             data_length_sec=20,
         )
-        path = f"../model_with_a_physical_feature/model{num}_pga.pt"
+        path = f"../model_with_several_physical_feature/model{num}_pga.pt"
         emb_dim = 150
         mlp_dims = (150, 100, 50, 30, 10)
-        CNN_model = CNN(downsample=2, mlp_input=7665).cuda()
-        CNN_ACC_model = CNN_ACC(downsample=1, mlp_input=7665).cuda()
-        CNN_Physical_model = CNN_Physical_features(downsample=1, mlp_input=7665).cuda()
+        CNN_model = CNN(mlp_input=7665).cuda()
+        CNN_ACC_model = CNN_ACC(mlp_input=7665).cuda()
+        CNN_Physical_model = CNN_Physical_features(downsample=len(physical_feature_list), mlp_input=7665).cuda()
         pos_emb_model = PositionEmbedding_Vs30(emb_dim=emb_dim).cuda()
         transformer_model = TransformerEncoder()
         mlp_model = MLP(input_shape=(emb_dim,), dims=mlp_dims).cuda()
@@ -82,7 +95,8 @@ for num, physical_feature in model_feature_pairs:
             pga_targets=25,
             data_length=4000,
         ).to(device)
-        full_Model.load_state_dict(torch.load(path))
+        full_Model.load_state_dict(torch.load(path, map_location=device))
+        full_Model.eval()
         loader = DataLoader(dataset=data, batch_size=1)
 
         Mixture_mu_pga = []
@@ -98,38 +112,39 @@ for num, physical_feature in model_feature_pairs:
         Lat = []
         Lon = []
         Elev = []
-        for j, sample in tqdm(enumerate(loader)):
-            # metadata
-            picks = sample["p_picks"].flatten().numpy().tolist()
-            P_picks.extend(picks)
-            P_picks.extend([np.nan] * (25 - len(picks)))
-            lat = sample["target"][:, :, 0].flatten().tolist()
-            lon = sample["target"][:, :, 1].flatten().tolist()
-            elev = sample["target"][:, :, 2].flatten().tolist()
-            Lat.extend(lat); Lon.extend(lon); Elev.extend(elev)
-            eq_id = sample["EQ_ID"][:, :, 0].flatten().numpy().tolist()
-            EQ_ID.extend(eq_id); EQ_ID.extend([np.nan] * (25 - len(eq_id)))
+        with torch.no_grad():
+            for j, sample in tqdm(enumerate(loader)):
+                # metadata
+                picks = sample["p_picks"].flatten().numpy().tolist()
+                P_picks.extend(picks)
+                P_picks.extend([np.nan] * (25 - len(picks)))
+                lat = sample["target"][:, :, 0].flatten().tolist()
+                lon = sample["target"][:, :, 1].flatten().tolist()
+                elev = sample["target"][:, :, 2].flatten().tolist()
+                Lat.extend(lat); Lon.extend(lon); Elev.extend(elev)
+                eq_id = sample["EQ_ID"][:, :, 0].flatten().numpy().tolist()
+                EQ_ID.extend(eq_id); EQ_ID.extend([np.nan] * (25 - len(eq_id)))
 
-            # model outputs: dual heads
-            w_pga, s_pga, m_pga, w_pgv, s_pgv, m_pgv = full_Model(sample)
-            w_pga, s_pga, m_pga = w_pga.cpu(), s_pga.cpu(), m_pga.cpu()
-            w_pgv, s_pgv, m_pgv = w_pgv.cpu(), s_pgv.cpu(), m_pgv.cpu()
-            # mixture means
-            pga_pred = torch.sum(w_pga * m_pga, dim=2).detach().numpy()
-            pgv_pred = torch.sum(w_pgv * m_pgv, dim=2).detach().numpy()
-            # ground truth labelsf
-            label_pga = sample['label_pga'].cpu().detach().numpy()
-            label_pgv = sample['label_pgv'].cpu().detach().numpy()
-            if j == 0:
-                Mixture_mu_pga = pga_pred
-                Mixture_mu_pgv = pgv_pred
-                Label_pga = label_pga
-                Label_pgv = label_pgv
-            else:
-                Mixture_mu_pga = np.concatenate([Mixture_mu_pga, pga_pred], axis=1)
-                Mixture_mu_pgv = np.concatenate([Mixture_mu_pgv, pgv_pred], axis=1)
-                Label_pga = np.concatenate([Label_pga, label_pga], axis=1)
-                Label_pgv = np.concatenate([Label_pgv, label_pgv], axis=1)
+                # model outputs: dual heads
+                w_pga, s_pga, m_pga, w_pgv, s_pgv, m_pgv = full_Model(sample)
+                w_pga, s_pga, m_pga = w_pga.cpu(), s_pga.cpu(), m_pga.cpu()
+                w_pgv, s_pgv, m_pgv = w_pgv.cpu(), s_pgv.cpu(), m_pgv.cpu()
+                # mixture means
+                pga_pred = torch.sum(w_pga * m_pga, dim=2).cpu().numpy()
+                pgv_pred = torch.sum(w_pgv * m_pgv, dim=2).cpu().numpy()
+                # ground truth labels
+                label_pga = sample['label_pga'].cpu().numpy()
+                label_pgv = sample['label_pgv'].cpu().numpy()
+                if j == 0:
+                    Mixture_mu_pga = pga_pred
+                    Mixture_mu_pgv = pgv_pred
+                    Label_pga = label_pga
+                    Label_pgv = label_pgv
+                else:
+                    Mixture_mu_pga = np.concatenate([Mixture_mu_pga, pga_pred], axis=1)
+                    Mixture_mu_pgv = np.concatenate([Mixture_mu_pgv, pgv_pred], axis=1)
+                    Label_pga = np.concatenate([Label_pga, label_pga], axis=1)
+                    Label_pgv = np.concatenate([Label_pgv, label_pgv], axis=1)
         # flatten results
         Label_pga = Label_pga.flatten(); Mixture_mu_pga = Mixture_mu_pga.flatten()
         Label_pgv = Label_pgv.flatten(); Mixture_mu_pgv = Mixture_mu_pgv.flatten()
@@ -150,12 +165,12 @@ for num, physical_feature in model_feature_pairs:
         # filter out zero labels
         output_df = output_df[(output_df["answer_pga"] != 0) | (output_df["answer_pgv"] != 0)]
         
-        os.makedirs(f"../predict_with_a_physical_feature/model_{num}", exist_ok=True)
+        os.makedirs(f"../predict_with_several_physical_feature/model_test_{num}", exist_ok=True)
         output_df.to_csv(
-            f"../predict_with_a_physical_feature/model_{num}/model {num} {mask_after_sec} sec prediction_vel.csv", index=False
+            f"../predict_with_several_physical_feature/model_test_{num}/model {num} {mask_after_sec} sec prediction_vel.csv", index=False
         )
 
-        # output_df = pd.read_csv(f"C:\\Users\\USER\\Desktop\\SAVANT\\code\\predict_with_a_physical_feature\\model_14\\model 14 13 sec prediction_vel.csv")
+        # output_df = pd.read_csv(f"C:\\Users\\USER\\Desktop\\SAVANT\\code\\predict_with_several_physical_feature\\model_14\\model 14 13 sec prediction_vel.csv")
 
         # plot prediction results
 
@@ -169,7 +184,7 @@ for num, physical_feature in model_feature_pairs:
             # intensity=MMIntensity(), 
             title=f"{mask_after_sec}s True Predict Plot PGA, 2016 data model {num}"
         )
-        fig_pga.savefig(f"../predict_with_a_physical_feature/model_{num}/model {num} {mask_after_sec} sec_pga_acc.png")
+        fig_pga.savefig(f"../predict_with_several_physical_feature/model_test_{num}/model {num} {mask_after_sec} sec_pga_acc.png")
         plt.close(fig_pga)
         
         # plot PGV performance
@@ -182,13 +197,13 @@ for num, physical_feature in model_feature_pairs:
             # intensity=MMIntensity(), 
             title=f"{mask_after_sec}s True Predict Plot PGV, 2016 data model {num}"
         )
-        fig_pgv.savefig(f"../predict_with_a_physical_feature/model_{num}/model {num} {mask_after_sec} sec_pgv_acc.png")
+        fig_pgv.savefig(f"../predict_with_several_physical_feature/model_test_{num}/model {num} {mask_after_sec} sec_pgv_acc.png")
         plt.close(fig_pgv)
 
 #%%
 # # ===========merge info==============
 # num = 38
-# output_path = f"../predict_with_a_physical_feature/model_{num}"
+# output_path = f"../predict_with_several_physical_feature/model_{num}"
 # catalog = pd.read_csv(f"../data/1999_2019_final_catalog.csv")
 # traces_info = pd.read_csv(f"../data/1999_2019_final_traces_Vs30.csv")
 
