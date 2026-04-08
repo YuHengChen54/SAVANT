@@ -15,6 +15,7 @@ model_acc/*
 model_pga_pgv/*
 model_with_2_CNN/*
 model_with_a_physical_feature/*
+model_with_several_physical_feature/*
 
 # 4. 資料前處理目錄：只放行 .py
 data_preprocess/*
