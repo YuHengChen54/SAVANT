@@ -192,12 +192,46 @@ def plot_performance_scores(score_containers, group_names, metric_types, palette
     # fig.savefig(filename)
     # plt.close()
 
+
+def get_best_model_numbers_by_metric(model_groups, score_containers, reference_metric, minimize=True):
+    """Return best model number per group based on a reference metric."""
+    best_model_numbers = []
+    best_metric_values = []
+
+    for model_nums, score_entry in zip(model_groups, score_containers):
+        metric_values = score_entry.get(reference_metric, [])
+        if len(metric_values) == 0:
+            best_model_numbers.append(None)
+            best_metric_values.append(np.nan)
+            continue
+
+        best_index = int(np.argmin(metric_values) if minimize else np.argmax(metric_values))
+        best_model_numbers.append(model_nums[best_index])
+        best_metric_values.append(metric_values[best_index])
+
+    return best_model_numbers, best_metric_values
+
 pga_metric_types = ["R2 Score PGA", "RMSE PGA", "MAE PGA"]
 pgv_metric_types = ["R2 Score PGV", "RMSE PGV", "MAE PGV"]
 pga_precision_recall_types = ["Precision PGA", "Recall PGA", "F1 Score PGA"]
 pgv_precision_recall_types = ["Precision PGV", "Recall PGV", "F1 Score PGV"]
 metric_colors = ["deepskyblue", "lightcoral", "coral"]
 precision_recall_colors = ["lightskyblue", "deepskyblue", "dodgerblue"]
+
+best_models_pga, best_rmse_pga = get_best_model_numbers_by_metric(
+    model_groups, score_dicts, "RMSE PGA", minimize=True
+)
+best_models_pgv, best_rmse_pgv = get_best_model_numbers_by_metric(
+    model_groups, score_dicts, "RMSE PGV", minimize=True
+)
+
+print("Best model numbers by group (based on RMSE PGA):")
+for group_name, model_num, rmse in zip(model_group_names, best_models_pga, best_rmse_pga):
+    print(f"{group_name}: model_{model_num} (RMSE PGA={rmse:.4f})")
+
+print("\nBest model numbers by group (based on RMSE PGV):")
+for group_name, model_num, rmse in zip(model_group_names, best_models_pgv, best_rmse_pgv):
+    print(f"{group_name}: model_{model_num} (RMSE PGV={rmse:.4f})")
 
 plot_performance_scores(score_dicts, model_group_names, pga_metric_types, metric_colors,
                         "PGA - Average Performance Scores (R2, RMSE, MAE)",
