@@ -6,6 +6,7 @@ import torch.nn as nn
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from itertools import combinations
 
 try:
     from captum.attr import IntegratedGradients
@@ -31,22 +32,7 @@ from model.CNN_Transformer_Mixtureoutput import (
 )
 from data.multiple_sta_dataset import multiple_station_dataset
 
-
-physical_feature_list = [
-    "pa",
-    "pv",
-    "pd",
-    "cvaa",
-    "cvav",
-    "cvad",
-    "CAV",
-    "Ia",
-    "IV2",
-    "TP",
-]
-
-# Full waveform channel names: first 9 waveform channels + 10 physical channels.
-waveform_channel_names = [
+WAVEFORM_BASE_CHANNEL_NAMES = [
     "acc_Z",
     "acc_N",
     "acc_E",
@@ -56,7 +42,39 @@ waveform_channel_names = [
     "vel_lf_Z",
     "vel_lf_N",
     "vel_lf_E",
-] + physical_feature_list
+]
+
+
+def build_model_feature_mapping(model_start_index: int = 40) -> dict[int, dict]:
+    """Mirror multi_station_training.py to build model_num -> feature mapping."""
+    candidate_physical_features = ["cvaa", "Ia", "IV2", "TP"]
+    physical_feature_combinations = []
+    for r in range(1, len(candidate_physical_features) + 1):
+        physical_feature_combinations.extend(combinations(candidate_physical_features, r))
+
+    model_index = model_start_index
+    model_to_features = {}
+
+    for feature_combo in physical_feature_combinations:
+        physical_feature_list = list(feature_combo)
+        for chosen_intensity in ["IV"]:
+            for loss_mode in ["MSFE"]:
+                for batch_size in [8]:
+                    for learning_rate in [5e-5]:
+                        for _ in range(2):
+                            model_index += 1
+                            model_to_features[model_index] = {
+                                "physical_feature": physical_feature_list,
+                                "intensity": chosen_intensity,
+                                "loss_mode": loss_mode,
+                                "batch_size": batch_size,
+                                "learning_rate": learning_rate,
+                            }
+    return model_to_features
+
+
+def get_waveform_channel_names(physical_feature_list: list[str]) -> list[str]:
+    return WAVEFORM_BASE_CHANNEL_NAMES + physical_feature_list
 
 
 if torch.cuda.is_available():
@@ -155,7 +173,11 @@ class PGV_Wrapper(PGA_Wrapper):
         return pgv_pred.sum(dim=1)
 
 
-def build_model(model_path: str, device: torch.device) -> full_model:
+def build_model(
+    model_path: str,
+    device: torch.device,
+    physical_feature_list: list[str],
+) -> full_model:
     emb_dim = 150
     mlp_dims = (150, 100, 50, 30, 10)
 
@@ -197,13 +219,14 @@ def compute_importance_percent(
     wrapper_model: nn.Module,
     loader: DataLoader,
     device: torch.device,
+    channel_names: list[str],
     max_batches: int | None,
     n_steps: int,
     internal_batch_size: int,
 ) -> tuple[np.ndarray, int]:
     ig = IntegratedGradients(wrapper_model)
 
-    total_scores = torch.zeros(len(waveform_channel_names), device=device)
+    total_scores = torch.zeros(len(channel_names), device=device)
     used_batches = 0
 
     for batch_idx, sample in tqdm(enumerate(loader), desc="IG batches"):
@@ -224,11 +247,11 @@ def compute_importance_percent(
             internal_batch_size=internal_batch_size,
         )
 
-        # Keep all 19 input channels on the last dimension.
+        # Keep all input channels on the last dimension.
         # Works for both 3D (B,T,C) and 4D (B,S,T,C) inputs.
         channel_attr = attributions[..., :]
 
-        # Aggregate all non-channel dimensions, keep final channel axis only -> (19,)
+        # Aggregate all non-channel dimensions, keep final channel axis only.
         reduce_dims = tuple(range(channel_attr.ndim - 1))
         batch_scores = torch.sum(torch.abs(channel_attr), dim=reduce_dims)
 
@@ -255,6 +278,7 @@ def compute_importance_percent(
 
 def save_importance_plot(
     importance_pct: np.ndarray,
+    channel_names: list[str],
     out_png_path: str,
     label_name: str,
     model_path: str,
@@ -263,7 +287,7 @@ def save_importance_plot(
 ) -> None:
 
     plt.figure(figsize=(12, 6))
-    bars = plt.bar(waveform_channel_names, importance_pct)
+    bars = plt.bar(channel_names, importance_pct)
     plt.ylabel("Importance (%)")
     plt.xlabel("Waveform + Physical Features")
     plt.title(
@@ -291,6 +315,7 @@ def save_importance_plot(
 def run_ig_importance(
     model_path: str,
     data_path: str,
+    physical_feature_list: list[str],
     out_png_path_pga: str,
     out_png_path_pgv: str,
     mask_after_sec: int = 3,
@@ -299,8 +324,13 @@ def run_ig_importance(
     internal_batch_size: int = 1,
 ) -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    channel_names = get_waveform_channel_names(physical_feature_list)
 
-    model = build_model(model_path=model_path, device=device)
+    model = build_model(
+        model_path=model_path,
+        device=device,
+        physical_feature_list=physical_feature_list,
+    )
     # IG only needs gradients w.r.t. input waveform; disable parameter gradients to save memory.
     for param in model.parameters():
         param.requires_grad_(False)
@@ -326,12 +356,14 @@ def run_ig_importance(
         wrapper_model=pga_wrapper,
         loader=loader,
         device=device,
+        channel_names=channel_names,
         max_batches=max_batches,
         n_steps=n_steps,
         internal_batch_size=internal_batch_size,
     )
     save_importance_plot(
         importance_pct=pga_importance_pct,
+        channel_names=channel_names,
         out_png_path=out_png_path_pga,
         label_name="PGA",
         model_path=model_path,
@@ -343,12 +375,14 @@ def run_ig_importance(
         wrapper_model=pgv_wrapper,
         loader=loader,
         device=device,
+        channel_names=channel_names,
         max_batches=max_batches,
         n_steps=n_steps,
         internal_batch_size=internal_batch_size,
     )
     save_importance_plot(
         importance_pct=pgv_importance_pct,
+        channel_names=channel_names,
         out_png_path=out_png_path_pgv,
         label_name="PGV",
         model_path=model_path,
@@ -357,18 +391,19 @@ def run_ig_importance(
     )
 
     print("==== Physical Feature Importance (Integrated Gradients - PGA) ====")
-    for name, val in zip(waveform_channel_names, pga_importance_pct):
+    for name, val in zip(channel_names, pga_importance_pct):
         print(f"{name:>5s}: {val:8.4f}%")
     print(f"Saved figure: {out_png_path_pga}")
 
     print("==== Physical Feature Importance (Integrated Gradients - PGV) ====")
-    for name, val in zip(waveform_channel_names, pgv_importance_pct):
+    for name, val in zip(channel_names, pgv_importance_pct):
         print(f"{name:>5s}: {val:8.4f}%")
     print(f"Saved figure: {out_png_path_pgv}")
 
 
 def run_ig_importance_batch_by_model_num(
     model_nums: list[int],
+    model_to_features: dict[int, dict],
     model_dir: str,
     output_root_dir: str,
     data_path: str,
@@ -388,8 +423,12 @@ def run_ig_importance_batch_by_model_num(
 
     total = len(model_nums)
     for idx, model_num in enumerate(model_nums, start=1):
+        if model_num not in model_to_features:
+            raise ValueError(f"model_num {model_num} is not in model_to_features mapping.")
+
+        physical_feature_list = model_to_features[model_num]["physical_feature"]
         model_path = os.path.join(model_dir, f"model{model_num}_pga.pt")
-        output_dir = os.path.join(output_root_dir, f"model_{model_num}")
+        output_dir = os.path.join(output_root_dir, f"model_test_{model_num}")
         model_name = os.path.splitext(os.path.basename(model_path))[0]
         out_png_path_pga = os.path.join(
             output_dir, f"ig_physical_importance_pga_{model_name}.png"
@@ -399,9 +438,11 @@ def run_ig_importance_batch_by_model_num(
         )
 
         print(f"\n[{idx}/{total}] Running IG for model: {model_path}")
+        print(f"Physical features: {physical_feature_list}")
         run_ig_importance(
             model_path=model_path,
             data_path=data_path,
+            physical_feature_list=physical_feature_list,
             out_png_path_pga=out_png_path_pga,
             out_png_path_pgv=out_png_path_pgv,
             mask_after_sec=mask_after_sec,
@@ -412,12 +453,17 @@ def run_ig_importance_batch_by_model_num(
 
 
 if __name__ == "__main__":
-    # Just edit this list/range to run multiple models.
-    model_nums = list(range(1, 12))
-    # model_nums = list(range(1, 23))  # example: run model1~model22
+    model_to_features = build_model_feature_mapping(model_start_index=40)
+
+    run_all_models = True
+    if run_all_models:
+        model_nums = sorted(model_to_features.keys())
+    else:
+        model_nums = [41]  # Modify to test a single model.
 
     run_ig_importance_batch_by_model_num(
         model_nums=model_nums,
+        model_to_features=model_to_features,
         model_dir="../model_with_several_physical_feature",
         output_root_dir="../predict_with_several_physical_feature",
         data_path="../data/TSMIP_1999_2019_Vs30_integral.hdf5",

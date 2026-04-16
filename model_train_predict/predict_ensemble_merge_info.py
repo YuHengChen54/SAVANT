@@ -9,6 +9,7 @@ import torch
 import sklearn.metrics as metrics
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from itertools import combinations
 import sys
 sys.path.append("..")
 from model.CNN_Transformer_Mixtureoutput import (
@@ -37,21 +38,67 @@ if torch.cuda.is_available():
 if hasattr(torch.backends, "transformers") and hasattr(torch.backends.transformers, "nested_tensor"):
     torch.backends.transformers.nested_tensor = False
 
-physical_feature_list = [
-        "pa", 
-        "pv", 
-        "pd", 
-        "cvaa", 
-        "cvav", 
-        "cvad", 
-        "CAV", 
-        "Ia", 
-        "IV2", 
-        "TP"
-    ]
+# ===========建立 model_index 與 physical_features 的映射==============
+# 與 multi_station_training.py 中的 combinations 邏輯完全對應
+def build_model_feature_mapping(model_start_index=None):
+    """根據 multi_station_training 的訓練邏輯建立 model_index -> physical_features 的映射"""
+    candidate_physical_features = ["cvaa", "Ia", "IV2", "TP"]
+    physical_feature_combinations = []
+    for r in range(1, len(candidate_physical_features) + 1):
+        physical_feature_combinations.extend(combinations(candidate_physical_features, r))
+    
+    model_index = model_start_index
+    model_to_features = {}
+    
+    # 與 multi_station_training 的迴圈結構完全相同
+    for feature_combo in physical_feature_combinations:
+        physical_feature_list = list(feature_combo)
+        for chosen_intensity in ["IV"]:
+            for loss_mode in ["MSFE"]:
+                for batch_size in [8]:
+                    for LR in [5e-5]:
+                        for i in range(2):
+                            model_index += 1
+                            model_to_features[model_index] = {
+                                "physical_feature": physical_feature_list,
+                                "intensity": chosen_intensity,
+                                "loss_mode": loss_mode,
+                                "batch_size": batch_size,
+                                "learning_rate": LR,
+                            }
+    
+    return model_to_features
+
+
+model_start_index = 40  # 根據 multi_station_training.py 中的 model_index 起始值
+model_to_features = build_model_feature_mapping(model_start_index=model_start_index)
+
+# ===========執行模式選擇==============
+# 設定為 True: 遍歷所有訓練過的模型
+# 設定為 False: 只測試單一指定的 model_num
+run_all_models = True
+
+if run_all_models:
+    # 遍歷所有訓練過的模型
+    models_to_test = sorted(model_to_features.keys())
+    print(f"將遍歷所有訓練模型: {models_to_test}")
+else:
+    # 只測試指定的 model_num
+    model_num = 7  # 修改這裡指定要測試的模型編號
+    if model_num not in model_to_features:
+        print(f"警告: model_num {model_num} 不在訓練清單中")
+        print(f"可用的 model_num 範圍: {min(model_to_features.keys())} - {max(model_to_features.keys())}")
+        print(f"可用的 model_num: {sorted(model_to_features.keys())}")
+    models_to_test = [model_num]
 
 # ===========predict==============
-for num in range(7, 8): 
+for num in models_to_test:
+    physical_feature_list = model_to_features[num]["physical_feature"]
+    print(f"\n{'='*80}")
+    print(f"開始測試 Model {num}")
+    print(f"Physical Features: {physical_feature_list}")
+    print(f"{'='*80}")
+    
     for mask_sec in [3, 5, 7, 10, 13, 15]:
         mask_after_sec = mask_sec
         # label = "pga"

@@ -5,76 +5,76 @@ import sklearn.metrics as metrics
 import matplotlib.pyplot as plt
 from analysis import Precision_Recall_Factory
 
-model_nums_msfe_iv_pa = [31, 32, 33]
-model_nums_msfe_vminor_pa = [34, 35, 36]
-model_nums_msfe_iv_pv = [37, 38, 39]
-model_nums_msfe_vminor_pv = [40, 41, 42]
-model_nums_msfe_iv_pd = [43, 44, 45]
-model_nums_msfe_vminor_pd = [46, 47, 48]
-model_nums_msfe_iv_cvaa = [49, 50, 51, 52, 53]
-model_nums_msfe_vminor_cvaa = [54, 55, 56]
-model_nums_msfe_iv_cvav = [57, 58, 59]
-model_nums_msfe_vminor_cvav = [60, 61, 62]
-model_nums_msfe_iv_cvad = [63, 64, 65]
-model_nums_msfe_vminor_cvad = [66, 67, 68]
-model_nums_msfe_iv_cav = [69, 70, 71]
-model_nums_msfe_vminor_cav = [72, 73, 74]
-model_nums_msfe_iv_ia = [75, 76, 77]
-model_nums_msfe_vminor_ia = [78, 79, 80]
-model_nums_msfe_iv_iv2 = [81, 82, 83]
-model_nums_msfe_vminor_iv2 = [84, 85, 86]
-model_nums_msfe_iv_tp = [87, 88, 89]
-model_nums_msfe_vminor_tp = [90, 91, 92]
-
-scores_msfe_iv_pa = {}
-scores_msfe_vminor_pa = {}
-scores_msfe_iv_pv = {}
-scores_msfe_vminor_pv = {}
-scores_msfe_iv_pd = {}
-scores_msfe_vminor_pd = {}
-scores_msfe_iv_cvaa = {}
-scores_msfe_vminor_cvaa = {}
-scores_msfe_iv_cvav = {}
-scores_msfe_vminor_cvav = {}
-scores_msfe_iv_cvad = {}
-scores_msfe_vminor_cvad = {}
-scores_msfe_iv_cav = {}
-scores_msfe_vminor_cav = {}
-scores_msfe_iv_ia = {}
-scores_msfe_vminor_ia = {}
-scores_msfe_iv_iv2 = {}
-scores_msfe_vminor_iv2 = {}
-scores_msfe_iv_tp = {}
-scores_msfe_vminor_tp = {}
+model_nums_cvaa = [41, 42]
+model_nums_ia = [43, 44]
+model_nums_iv2 = [45, 46]
+model_nums_tp = [47, 48]
+model_nums_cvaa_ia = [49, 50]
+model_nums_cvaa_iv2 = [51, 52]
+model_nums_cvaa_tp = [53, 54]
+model_nums_ia_iv2 = [55, 56]
+model_nums_ia_tp = [57, 58]
+model_nums_iv2_tp = [59, 60]
+model_nums_cvaa_ia_iv2 = [61, 62]
+model_nums_cvaa_ia_tp = [63, 64]
+model_nums_cvaa_iv2_tp = [65, 66]
+model_nums_ia_iv2_tp = [67, 68]
+model_nums_cvaa_ia_iv2_tp = [69, 70]
 
 model_groups = [
-    model_nums_msfe_iv_pa, model_nums_msfe_vminor_pa, 
-    model_nums_msfe_iv_pv, model_nums_msfe_vminor_pv, 
-    model_nums_msfe_iv_pd, model_nums_msfe_vminor_pd,
-    model_nums_msfe_iv_cvaa, model_nums_msfe_vminor_cvaa,
-    model_nums_msfe_iv_cvav, model_nums_msfe_vminor_cvav,
-    model_nums_msfe_iv_cvad, model_nums_msfe_vminor_cvad,
-    model_nums_msfe_iv_cav, model_nums_msfe_vminor_cav,
-    model_nums_msfe_iv_ia, model_nums_msfe_vminor_ia,
-    model_nums_msfe_iv_iv2, model_nums_msfe_vminor_iv2,
-    model_nums_msfe_iv_tp, model_nums_msfe_vminor_tp
+    model_nums_cvaa,
+    model_nums_ia,
+    model_nums_iv2,
+    model_nums_tp,
+    model_nums_cvaa_ia,
+    model_nums_cvaa_iv2,
+    model_nums_cvaa_tp,
+    model_nums_ia_iv2,
+    model_nums_ia_tp,
+    model_nums_iv2_tp,
+    model_nums_cvaa_ia_iv2,
+    model_nums_cvaa_ia_tp,
+    model_nums_cvaa_iv2_tp,
+    model_nums_ia_iv2_tp,
+    model_nums_cvaa_ia_iv2_tp,
 ]
 
+scores_cvaa = {}
+scores_ia = {}
+scores_iv2 = {}
+scores_tp = {}
+scores_cvaa_ia = {}
+scores_cvaa_iv2 = {}
+scores_cvaa_tp = {}
+scores_ia_iv2 = {}
+scores_ia_tp = {}
+scores_iv2_tp = {}
+scores_cvaa_ia_iv2 = {}
+scores_cvaa_ia_tp = {}
+scores_cvaa_iv2_tp = {}
+scores_ia_iv2_tp = {}
+scores_cvaa_ia_iv2_tp = {}
+
 score_dicts = [
-    scores_msfe_iv_pa, scores_msfe_vminor_pa, 
-    scores_msfe_iv_pv, scores_msfe_vminor_pv,
-    scores_msfe_iv_pd, scores_msfe_vminor_pd,
-    scores_msfe_iv_cvaa, scores_msfe_vminor_cvaa,
-    scores_msfe_iv_cvav, scores_msfe_vminor_cvav,
-    scores_msfe_iv_cvad, scores_msfe_vminor_cvad,
-    scores_msfe_iv_cav, scores_msfe_vminor_cav,
-    scores_msfe_iv_ia, scores_msfe_vminor_ia,
-    scores_msfe_iv_iv2, scores_msfe_vminor_iv2,
-    scores_msfe_iv_tp, scores_msfe_vminor_tp
+    scores_cvaa,
+    scores_ia,
+    scores_iv2,
+    scores_tp,
+    scores_cvaa_ia,
+    scores_cvaa_iv2,
+    scores_cvaa_tp,
+    scores_ia_iv2,
+    scores_ia_tp,
+    scores_iv2_tp,
+    scores_cvaa_ia_iv2,
+    scores_cvaa_ia_tp,
+    scores_cvaa_iv2_tp,
+    scores_ia_iv2_tp,
+    scores_cvaa_ia_iv2_tp,
 ]
 
 time_after_p_arrival = 13
-file_root_path = "../predict_with_a_physical_feature"
+file_root_path = "../predict_with_several_physical_feature"
 
 for model_nums, score_dict in zip(model_groups, score_dicts):
     r2_scores_pga = []
@@ -91,7 +91,7 @@ for model_nums, score_dict in zip(model_groups, score_dicts):
     mae_scores_pgv = []
     
     for model_num in model_nums:
-        file_path = os.path.join(file_root_path, f"model_{model_num}")
+        file_path = os.path.join(file_root_path, f"model_test_{model_num}")
         all_files = os.listdir(file_path)
         csv_files = [f for f in all_files if f.endswith('.csv')]
         target_file = [f for f in csv_files if f" {time_after_p_arrival} " in f][0]
@@ -148,16 +148,10 @@ for model_nums, score_dict in zip(model_groups, score_dicts):
     score_dict["MAE PGV"] = mae_scores_pgv
 
 model_group_names = [
-    "MSFE_IV_pa", "MSFE_Vminor_pa",
-    "MSFE_IV_pv", "MSFE_Vminor_pv",
-    "MSFE_IV_pd", "MSFE_Vminor_pd",
-    "MSFE_IV_cvaa", "MSFE_Vminor_cvaa",
-    "MSFE_IV_cvav", "MSFE_Vminor_cvav",
-    "MSFE_IV_cvad", "MSFE_Vminor_cvad",
-    "MSFE_IV_CAV", "MSFE_Vminor_CAV",
-    "MSFE_IV_Ia", "MSFE_Vminor_Ia",
-    "MSFE_IV_IV2", "MSFE_Vminor_IV2",
-    "MSFE_IV_TP", "MSFE_Vminor_TP"
+    "cvaa", "Ia", "IV2", "TP",
+    "cvaa+Ia", "cvaa+IV2", "cvaa+TP", "Ia+IV2", "Ia+TP", "IV2+TP",
+    "cvaa+Ia+IV2", "cvaa+Ia+TP", "cvaa+IV2+TP", "Ia+IV2+TP",
+    "cvaa+Ia+IV2+TP"
 ]
 
 def plot_performance_scores(score_containers, group_names, metric_types, palette, title, filename, use_max=False, set_ylim=False, reference_metric=None, minimize=False):
