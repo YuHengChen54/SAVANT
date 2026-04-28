@@ -4,74 +4,29 @@ import os
 import sklearn.metrics as metrics
 import matplotlib.pyplot as plt
 from analysis import Precision_Recall_Factory
+from itertools import combinations
 
-model_nums_cvaa = [41, 42]
-model_nums_ia = [43, 44]
-model_nums_iv2 = [45, 46]
-model_nums_tp = [47, 48]
-model_nums_cvaa_ia = [49, 50]
-model_nums_cvaa_iv2 = [51, 52]
-model_nums_cvaa_tp = [53, 54]
-model_nums_ia_iv2 = [55, 56]
-model_nums_ia_tp = [57, 58]
-model_nums_iv2_tp = [59, 60]
-model_nums_cvaa_ia_iv2 = [61, 62]
-model_nums_cvaa_ia_tp = [63, 64]
-model_nums_cvaa_iv2_tp = [65, 66]
-model_nums_ia_iv2_tp = [67, 68]
-model_nums_cvaa_ia_iv2_tp = [69, 70]
+def build_current_model_groups(model_start_index=72, repeats_per_group=5):
+    """Build model groups that match the current training schedule."""
+    candidate_physical_features = ["cvaa_log1p", "Ia_log1p", "IV2_log1p", "TP_log1p"]
+    model_groups = []
+    model_group_names = []
 
-model_groups = [
-    model_nums_cvaa,
-    model_nums_ia,
-    model_nums_iv2,
-    model_nums_tp,
-    model_nums_cvaa_ia,
-    model_nums_cvaa_iv2,
-    model_nums_cvaa_tp,
-    model_nums_ia_iv2,
-    model_nums_ia_tp,
-    model_nums_iv2_tp,
-    model_nums_cvaa_ia_iv2,
-    model_nums_cvaa_ia_tp,
-    model_nums_cvaa_iv2_tp,
-    model_nums_ia_iv2_tp,
-    model_nums_cvaa_ia_iv2_tp,
-]
+    model_index = model_start_index
+    for feature_count in range(3, len(candidate_physical_features) + 1):
+        for feature_combo in combinations(candidate_physical_features, feature_count):
+            group_model_nums = []
+            for _ in range(repeats_per_group):
+                model_index += 1
+                group_model_nums.append(model_index)
+            model_groups.append(group_model_nums)
+            model_group_names.append("+".join(name.replace("_log1p", "") for name in feature_combo))
 
-scores_cvaa = {}
-scores_ia = {}
-scores_iv2 = {}
-scores_tp = {}
-scores_cvaa_ia = {}
-scores_cvaa_iv2 = {}
-scores_cvaa_tp = {}
-scores_ia_iv2 = {}
-scores_ia_tp = {}
-scores_iv2_tp = {}
-scores_cvaa_ia_iv2 = {}
-scores_cvaa_ia_tp = {}
-scores_cvaa_iv2_tp = {}
-scores_ia_iv2_tp = {}
-scores_cvaa_ia_iv2_tp = {}
+    return model_groups, model_group_names
 
-score_dicts = [
-    scores_cvaa,
-    scores_ia,
-    scores_iv2,
-    scores_tp,
-    scores_cvaa_ia,
-    scores_cvaa_iv2,
-    scores_cvaa_tp,
-    scores_ia_iv2,
-    scores_ia_tp,
-    scores_iv2_tp,
-    scores_cvaa_ia_iv2,
-    scores_cvaa_ia_tp,
-    scores_cvaa_iv2_tp,
-    scores_ia_iv2_tp,
-    scores_cvaa_ia_iv2_tp,
-]
+
+model_groups, model_group_names = build_current_model_groups(model_start_index=72, repeats_per_group=5)
+score_dicts = [{} for _ in model_groups]
 
 time_after_p_arrival = 13
 file_root_path = "../predict_with_several_physical_feature"
@@ -147,13 +102,6 @@ for model_nums, score_dict in zip(model_groups, score_dicts):
     score_dict["RMSE PGV"] = rmse_scores_pgv
     score_dict["MAE PGV"] = mae_scores_pgv
 
-model_group_names = [
-    "cvaa", "Ia", "IV2", "TP",
-    "cvaa+Ia", "cvaa+IV2", "cvaa+TP", "Ia+IV2", "Ia+TP", "IV2+TP",
-    "cvaa+Ia+IV2", "cvaa+Ia+TP", "cvaa+IV2+TP", "Ia+IV2+TP",
-    "cvaa+Ia+IV2+TP"
-]
-
 def plot_performance_scores(score_containers, group_names, metric_types, palette, title, filename, use_max=False, set_ylim=False, reference_metric=None, minimize=False):
     """Plot grouped bar chart of model performance metrics and save to file."""
     x_positions = np.arange(len(group_names))
@@ -183,8 +131,8 @@ def plot_performance_scores(score_containers, group_names, metric_types, palette
     ax.set_title(title)
     ax.legend()
     fig.tight_layout()
-    # fig.savefig(filename)
-    # plt.close()
+    fig.savefig(f"../ablation_study/{filename}")
+    plt.close()
 
 
 def get_best_model_numbers_by_metric(model_groups, score_containers, reference_metric, minimize=True):
