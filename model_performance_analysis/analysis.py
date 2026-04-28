@@ -356,8 +356,8 @@ class Intensity_Plotter:
             zorder=3,
             label="True Intensity",
         )
-        event_lon = eventmeta["longitude"]
-        event_lat = eventmeta["latitude"]
+        event_lon = float(eventmeta["longitude"].iloc[0])
+        event_lat = float(eventmeta["latitude"].iloc[0])
         ax_map.scatter(
             event_lon,
             event_lat,
@@ -452,8 +452,7 @@ class Intensity_Plotter:
         if output_dir:
             plt.savefig(os.path.join(output_dir, f"intensity_{sec}s.png"), format="png")
             plt.close(fig)
-        else:
-            plt.show()
+            
         return fig, ax_map
 
     def plot_true_predicted(
@@ -555,12 +554,13 @@ class Intensity_Plotter:
             center_y = (intensity_threshold[i] + intensity_threshold[i + 1]) / 2
             ax.text(label_x_pos, center_y, label, ha="left", va="center", fontsize=axis_fontsize-5, zorder=5)
 
-        # 計算R2值，放在圖的左上角
-        r2 = metrics.r2_score(y_true, y_pred_point)
+        # Compute RMSE and MAE, and show them on the top-left of the plot.
+        rmse = np.sqrt(metrics.mean_squared_error(y_true, y_pred_point))
+        mae = metrics.mean_absolute_error(y_true, y_pred_point)
         ax.text(
             limits[0] + 0.085,
             limits[-1] - 0.08,
-            f"$R^2={r2:.2f}$",
+            f"RMSE={rmse:.3f}\nMAE={mae:.3f}",
             va="top",
             fontsize=axis_fontsize - 4,
         )
@@ -675,8 +675,8 @@ class Intensity_Plotter:
             zorder=3,
             label="Predicted Intensity",
         )
-        event_lon = eventmeta["catalog_lon"]
-        event_lat = eventmeta["catalog_lat"]
+        event_lon = float(eventmeta["catalog_lon"].iloc[0])
+        event_lat = float(eventmeta["catalog_lat"].iloc[0])
         ax_map.scatter(
             event_lon,
             event_lat,
@@ -937,8 +937,8 @@ class Warning_Time_Plotter:
                 alpha=0.7,
             )
 
-        event_lon = eventmeta["longitude"]
-        event_lat = eventmeta["latitude"]
+        event_lon = float(eventmeta["longitude"].iloc[0])
+        event_lat = float(eventmeta["latitude"].iloc[0])
         ax_map.scatter(
             event_lon,
             event_lat,
