@@ -2,7 +2,6 @@ import os
 import h5py
 import matplotlib.pyplot as plt
 
-# plt.subplots()
 import numpy as np
 import pandas as pd
 import torch
@@ -38,26 +37,26 @@ if torch.cuda.is_available():
 if hasattr(torch.backends, "transformers") and hasattr(torch.backends.transformers, "nested_tensor"):
     torch.backends.transformers.nested_tensor = False
 
-# ===========建立 model_index 與 physical_features 的映射==============
-# 與 multi_station_training.py 中的 combinations 邏輯完全對應
+# =========== Build model_index to physical_features mapping ===========
+# Keep this mapping aligned with multi_station_training.py.
 def build_model_feature_mapping(model_start_index=None):
-    """根據 multi_station_training 的訓練邏輯建立 model_index -> physical_features 的映射"""
-    candidate_physical_features = ["cvaa", "Ia", "IV2", "TP"]
+    """Build model_index -> physical_features mapping from training loop logic."""
+    candidate_physical_features = ["cvaa_log1p", "Ia_log1p", "IV2_log1p", "TP_log1p"]
     physical_feature_combinations = []
-    for r in range(1, len(candidate_physical_features) + 1):
+    for r in range(3, len(candidate_physical_features) + 1):
         physical_feature_combinations.extend(combinations(candidate_physical_features, r))
     
     model_index = model_start_index
     model_to_features = {}
     
-    # 與 multi_station_training 的迴圈結構完全相同
+    # Mirror the loop structure used in training.
     for feature_combo in physical_feature_combinations:
         physical_feature_list = list(feature_combo)
         for chosen_intensity in ["IV"]:
             for loss_mode in ["MSFE"]:
                 for batch_size in [8]:
                     for LR in [5e-5]:
-                        for i in range(2):
+                        for i in range(5):
                             model_index += 1
                             model_to_features[model_index] = {
                                 "physical_feature": physical_feature_list,
@@ -70,46 +69,45 @@ def build_model_feature_mapping(model_start_index=None):
     return model_to_features
 
 
-model_start_index = 40  # 根據 multi_station_training.py 中的 model_index 起始值
+model_start_index = 72  # Start index used in multi_station_training.py
 model_to_features = build_model_feature_mapping(model_start_index=model_start_index)
 
-# ===========執行模式選擇==============
-# 設定為 True: 遍歷所有訓練過的模型
-# 設定為 False: 只測試單一指定的 model_num
+# =========== Execution mode ===========
+# True: evaluate all mapped models.
+# False: evaluate only one specified model_num.
 run_all_models = True
 
 if run_all_models:
-    # 遍歷所有訓練過的模型
+    # Evaluate all mapped model indices.
     models_to_test = sorted(model_to_features.keys())
-    print(f"將遍歷所有訓練模型: {models_to_test}")
+    print(f"Evaluating all mapped models: {models_to_test}")
 else:
-    # 只測試指定的 model_num
-    model_num = 7  # 修改這裡指定要測試的模型編號
+    # Evaluate only the specified model number.
+    model_num = 73  # Change this to the model index you want to test.
     if model_num not in model_to_features:
-        print(f"警告: model_num {model_num} 不在訓練清單中")
-        print(f"可用的 model_num 範圍: {min(model_to_features.keys())} - {max(model_to_features.keys())}")
-        print(f"可用的 model_num: {sorted(model_to_features.keys())}")
+        print(f"Warning: model_num {model_num} is not in the mapped training list.")
+        print(f"Available model_num range: {min(model_to_features.keys())} - {max(model_to_features.keys())}")
+        print(f"Available model_num values: {sorted(model_to_features.keys())}")
     models_to_test = [model_num]
 
-# ===========predict==============
+# =========== Predict ===========
 for num in models_to_test:
     physical_feature_list = model_to_features[num]["physical_feature"]
     print(f"\n{'='*80}")
-    print(f"開始測試 Model {num}")
+    print(f"Start testing Model {num}")
     print(f"Physical Features: {physical_feature_list}")
     print(f"{'='*80}")
     
     for mask_sec in [3, 5, 7, 10, 13, 15]:
         mask_after_sec = mask_sec
-        # label = "pga"
-        # dual-target: no single label variable
+        # Dual-target prediction: PGA and PGV.
         device = torch.device("cuda")
         data = multiple_station_dataset(
-            "../data/TSMIP_1999_2019_Vs30_integral.hdf5",
+            "../data/TSMIP_1999_2019_Vs30_log1p.hdf5",
             mode="test",
             mask_waveform_sec=mask_after_sec,
             test_year=2016,
-            # use default label_keys=["pga","pgv"]
+            # Use default label_keys=["pga", "pgv"].
             physical_feature=physical_feature_list,
             mag_threshold=0,
             input_type="acc",
@@ -217,107 +215,29 @@ for num in models_to_test:
             f"../predict_with_several_physical_feature/model_test_{num}/model {num} {mask_after_sec} sec prediction_vel.csv", index=False
         )
 
-        # output_df = pd.read_csv(f"C:\\Users\\USER\\Desktop\\SAVANT\\code\\predict_with_several_physical_feature\\model_14\\model 14 13 sec prediction_vel.csv")
-
-        # plot prediction results
-
-        # plot PGA performance
+        # Plot PGA performance.
         fig_pga, ax_pga = Intensity_Plotter.plot_true_predicted(
             y_true=output_df["answer_pga"],
             y_pred=output_df["predict_pga"],
             agg="point",
             point_size=12,
             target="pga",
-            # intensity=MMIntensity(), 
             title=f"{mask_after_sec}s True Predict Plot PGA, 2016 data model {num}"
         )
         fig_pga.savefig(f"../predict_with_several_physical_feature/model_test_{num}/model {num} {mask_after_sec} sec_pga_acc.png")
         plt.close(fig_pga)
         
-        # plot PGV performance
+        # Plot PGV performance.
         fig_pgv, ax_pgv = Intensity_Plotter.plot_true_predicted(
             y_true=output_df["answer_pgv"],
             y_pred=output_df["predict_pgv"],
             agg="point",
             point_size=12,
             target="pgv",
-            # intensity=MMIntensity(), 
             title=f"{mask_after_sec}s True Predict Plot PGV, 2016 data model {num}"
         )
         fig_pgv.savefig(f"../predict_with_several_physical_feature/model_test_{num}/model {num} {mask_after_sec} sec_pgv_acc.png")
         plt.close(fig_pgv)
 
-#%%
-# # ===========merge info==============
-# num = 38
-# output_path = f"../predict_with_several_physical_feature/model_{num}"
-# catalog = pd.read_csv(f"../data/1999_2019_final_catalog.csv")
-# traces_info = pd.read_csv(f"../data/1999_2019_final_traces_Vs30.csv")
-
-# for mask_after_sec in [3, 5, 7, 10, 13, 15]:
-#     ensemble_predict = pd.read_csv(
-#         f"{output_path}/model {num} {mask_after_sec} sec prediction_vel.csv"
-#     )
-#     trace_merge_catalog = pd.merge(
-#         traces_info,
-#         catalog[
-#             [
-#                 "EQ_ID",
-#                 "lat",
-#                 "lat_minute",
-#                 "lon",
-#                 "lon_minute",
-#                 "depth",
-#                 "magnitude",
-#                 "nsta",
-#                 "nearest_sta_dist (km)",
-#             ]
-#         ],
-#         on="EQ_ID",
-#         how="left",
-#     )
-#     trace_merge_catalog["event_lat"] = (
-#         trace_merge_catalog["lat"] + trace_merge_catalog["lat_minute"] / 60
-#     )
-
-#     trace_merge_catalog["event_lon"] = (
-#         trace_merge_catalog["lon"] + trace_merge_catalog["lon_minute"] / 60
-#     )
-#     trace_merge_catalog.drop(
-#         ["lat", "lat_minute", "lon", "lon_minute"], axis=1, inplace=True
-#     )
-#     trace_merge_catalog.rename(columns={"elevation (m)": "elevation"}, inplace=True)
-
-
-#     data_path = "../data/TSMIP_1999_2019_Vs30_integral.hdf5"
-#     dataset = h5py.File(data_path, "r")
-#     for eq_id in ensemble_predict["EQ_ID"].unique():
-#         eq_id = int(eq_id)
-#         station_name = dataset["data"][str(eq_id)]["station_name"][:].tolist()
-
-#         ensemble_predict.loc[
-#             ensemble_predict.query(f"EQ_ID=={eq_id}").index, "station_name"
-#         ] = station_name
-
-#     ensemble_predict["station_name"] = ensemble_predict["station_name"].str.decode("utf-8")
-
-
-#     prediction_with_info = pd.merge(
-#         ensemble_predict,
-#         trace_merge_catalog.drop(
-#             [
-#                 "latitude",
-#                 "longitude",
-#                 "elevation",
-#             ],
-#             axis=1,
-#         ),
-#         on=["EQ_ID", "station_name"],
-#         how="left",
-#         suffixes=["_window", "_file"],
-#     )
-#     prediction_with_info.to_csv(
-#         f"{output_path}/{mask_after_sec} sec model{num} with all info_vel.csv", index=False
-#     )
-
-# %%
+# Metadata merging was moved to model_train_predict/merge_prediction_metadata.py
+# to keep this script focused on inference only.
