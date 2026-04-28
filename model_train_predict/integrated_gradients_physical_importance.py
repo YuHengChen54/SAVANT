@@ -47,9 +47,9 @@ WAVEFORM_BASE_CHANNEL_NAMES = [
 
 def build_model_feature_mapping(model_start_index: int = 40) -> dict[int, dict]:
     """Mirror multi_station_training.py to build model_num -> feature mapping."""
-    candidate_physical_features = ["cvaa", "Ia", "IV2", "TP"]
+    candidate_physical_features = ["cvaa_log1p", "Ia_log1p", "IV2_log1p", "TP_log1p"]
     physical_feature_combinations = []
-    for r in range(1, len(candidate_physical_features) + 1):
+    for r in range(3, len(candidate_physical_features) + 1):
         physical_feature_combinations.extend(combinations(candidate_physical_features, r))
 
     model_index = model_start_index
@@ -459,7 +459,7 @@ if __name__ == "__main__":
     if run_all_models:
         model_nums = sorted(model_to_features.keys())
     else:
-        model_nums = [41]  # Modify to test a single model.
+        model_nums = [72]  # Modify to test a single model.
 
     run_ig_importance_batch_by_model_num(
         model_nums=model_nums,

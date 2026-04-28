@@ -376,12 +376,12 @@ def train_process(
 
 if __name__ == "__main__":
     train_data_size = 0.8
-    model_index = 70
+    model_index = 72
     num_epochs = 300
     # batch_size=16
-    candidate_physical_features = ["cvaa", "Ia", "IV2", "TP"]
+    candidate_physical_features = ["cvaa_log1p", "Ia_log1p", "IV2_log1p", "TP_log1p"]
     physical_feature_combinations = []
-    for r in range(1, len(candidate_physical_features) + 1):
+    for r in range(3, len(candidate_physical_features) + 1):
         physical_feature_combinations.extend(combinations(candidate_physical_features, r))
 
     intensity_list = ["IV"]
@@ -393,7 +393,7 @@ if __name__ == "__main__":
             for loss_mode in ["MSFE"]:
                 for batch_size in [8]:
                     for LR in [5e-5]: # 5e-6 used in TT-SAM
-                        for i in range(2):
+                        for i in range(5):
                             model_index += 1
                             hyper_param = {
                                 "model_index": model_index,
@@ -451,7 +451,7 @@ if __name__ == "__main__":
                                 lr=LR,
                             )
                             full_data = multiple_station_dataset(
-                                "../data/TSMIP_1999_2019_Vs30_integral.hdf5",
+                                "../data/TSMIP_1999_2019_Vs30_log1p.hdf5",
                                 mode="train",
                                 mask_waveform_sec=3,
                                 weight_label=False,
@@ -473,7 +473,7 @@ if __name__ == "__main__":
                                 optimizer,
                                 hyper_param,
                                 experiment_name="SAVANT with all physical feature",
-                                run_name=f"model {model_index} | physical feature: {'+'.join(physical_feature_list)} | {loss_mode} | threshold: {chosen_intensity} | 20260408",
+                                run_name=f"model {model_index} | physical feature: {'+'.join(physical_feature_list)} | {loss_mode} | threshold: {chosen_intensity} | 20260420",
                                 # run_name="test"
                             )
         
