@@ -5,7 +5,7 @@ from analysis import Intensity_Plotter,Warning_Time_Plotter
 import matplotlib.pyplot as plt
 
 
-model_nums = range(41, 71)  # Adjusted to match the new model indexing starting at 72
+model_nums = [96]  # Adjusted to match the new model indexing starting at 72
 mask_after_secs = [3, 5, 7, 10, 13]
 label_type = "pga"
 if label_type == "pga":
@@ -47,35 +47,35 @@ for model_num in model_nums:
                 print(f"Skip EQ_ID {EQ_ID}: no records in {prediction_file}")
                 continue
 
-            fig, ax = Intensity_Plotter.plot_intensity_map(
-                trace_info=event_prediction,
-                eventmeta=event,
-                label_type=label_type,
-                true_label=event_prediction[f"answer_{label_type}"],
-                pred_label=event_prediction[f"predict_{label_type}"],
-                sec=mask_after_sec,
-                EQ_ID=EQ_ID,
-                grid_method="linear",
-                pad=100,
-                title=f"Model {model_num} | {mask_after_sec} sec intensity Map",
-            )
-            fig.savefig(
-                f"{output_path}/model{model_num}_{EQ_ID}_{mask_after_sec}sec intensity Map.png", dpi=600, bbox_inches="tight"
-            )
-            plt.close(fig)
+            # fig, ax = Intensity_Plotter.plot_intensity_map(
+            #     trace_info=event_prediction,
+            #     eventmeta=event,
+            #     label_type=label_type,
+            #     true_label=event_prediction[f"answer_{label_type}"],
+            #     pred_label=event_prediction[f"predict_{label_type}"],
+            #     sec=mask_after_sec,
+            #     EQ_ID=EQ_ID,
+            #     grid_method="linear",
+            #     pad=100,
+            #     title=f"Model {model_num} | {mask_after_sec} sec intensity Map",
+            # )
+            # fig.savefig(
+            #     f"{output_path}/model{model_num}_{EQ_ID}_{mask_after_sec}sec intensity Map.png", dpi=600, bbox_inches="tight"
+            # )
+            # plt.close(fig)
 
-            fig, ax = Intensity_Plotter.plot_true_predicted(
-                y_true=event_prediction[f"answer_{label_type}"],
-                y_pred=event_prediction[f"predict_{label_type}"],
-                agg="point",
-                point_size=35,
-                target=label_type,
-                title=f"Model {model_num} | EQID: {EQ_ID}, mag: {event['magnitude'].values[0]}, {mask_after_sec} sec true and predict",
-            )
-            fig.savefig(
-                f"{output_path}/model{model_num}_{EQ_ID}_mag_{event['magnitude'].values[0]}_{mask_after_sec}sec true predict plot.png", dpi=450, bbox_inches="tight"
-            )
-            plt.close(fig)
+            # fig, ax = Intensity_Plotter.plot_true_predicted(
+            #     y_true=event_prediction[f"answer_{label_type}"],
+            #     y_pred=event_prediction[f"predict_{label_type}"],
+            #     agg="point",
+            #     point_size=35,
+            #     target=label_type,
+            #     title=f"Model {model_num} | EQID: {EQ_ID}, mag: {event['magnitude'].values[0]}, {mask_after_sec} sec true and predict",
+            # )
+            # fig.savefig(
+            #     f"{output_path}/model{model_num}_{EQ_ID}_mag_{event['magnitude'].values[0]}_{mask_after_sec}sec true predict plot.png", dpi=450, bbox_inches="tight"
+            # )
+            # plt.close(fig)
 
             try:
                 # Align expected columns for warning-time utilities.
@@ -91,32 +91,32 @@ for model_num in model_nums:
                     sec=mask_after_sec,
                     label_threshold=label_threshold,
                 )
-
                 fig.savefig(f"{output_path}/model{model_num}_{EQ_ID}_mag_{event['magnitude'].values[0]}_{mask_after_sec} sec warning map.png",
                             dpi=600)
-                fig, ax = Warning_Time_Plotter.correct_warning_with_epidist(
-                    event_prediction=event_prediction,
-                    label_threshold=label_threshold,
-                    label_type=label_type,
-                    mask_after_sec=mask_after_sec,
-                )
-                fig.savefig(f"{output_path}/model{model_num}_{EQ_ID}_mag_{event['magnitude'].values[0]}_{mask_after_sec} sec epidist vs time.png",
-                            dpi=600)
-                fig, ax = Warning_Time_Plotter.warning_time_hist(
-                    event_prediction,
-                    catalog,
-                    EQ_ID=EQ_ID,
-                    mask_after_sec=mask_after_sec,
-                    warning_mag_threshold=4,
-                    label_threshold=label_threshold,
-                    label_type=label_type,
-                    bins=14,
-                )
-                fig.savefig(
-                    f"{output_path}/model{model_num}_{EQ_ID}_mag_{event['magnitude'].values[0]}_{mask_after_sec} sec warning stations hist.png",
-                    dpi=600,
-                    bbox_inches="tight",
-                )
+                
+                # fig, ax = Warning_Time_Plotter.correct_warning_with_epidist(
+                #     event_prediction=event_prediction,
+                #     label_threshold=label_threshold,
+                #     label_type=label_type,
+                #     mask_after_sec=mask_after_sec,
+                # )
+                # fig.savefig(f"{output_path}/model{model_num}_{EQ_ID}_mag_{event['magnitude'].values[0]}_{mask_after_sec} sec epidist vs time.png",
+                #             dpi=600)
+                # fig, ax = Warning_Time_Plotter.warning_time_hist(
+                #     event_prediction,
+                #     catalog,
+                #     EQ_ID=EQ_ID,
+                #     mask_after_sec=mask_after_sec,
+                #     warning_mag_threshold=4,
+                #     label_threshold=label_threshold,
+                #     label_type=label_type,
+                #     bins=14,
+                # )
+                # fig.savefig(
+                #     f"{output_path}/model{model_num}_{EQ_ID}_mag_{event['magnitude'].values[0]}_{mask_after_sec} sec warning stations hist.png",
+                #     dpi=600,
+                #     bbox_inches="tight",
+                # )
             except Exception as e:
                 print(f"Model {model_num}, sec {mask_after_sec}, EQ_ID {EQ_ID} failed: {e}")
                 continue

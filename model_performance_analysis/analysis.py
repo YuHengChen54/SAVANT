@@ -888,17 +888,11 @@ class Warning_Time_Plotter:
             f"{label_type}_time_window"
         ] / 200 - (sec + 5)
 
-        # cvals = [-1, 0, 40, 50]
-        # colors = ["purple", "white", "red", "red"]
+        # 固定 colorbar 範圍: -5 到 35 秒
+        cvals = [-5, -0.001,  0, 15, 30]
+        colors = ["#960000", "#960000", "white", "#60FF60", "#005700"]
 
-        cvals = [0, warning_time.mean(), warning_time.max()]
-        colors = ["white", "orange", "red"]
-
-        if warning_time.min() < 0:
-            cvals = [warning_time.min(), 0, warning_time.max()]
-            colors = ["purple", "white", "red"]
-
-        norm = plt.Normalize(min(cvals), max(cvals))
+        norm = plt.Normalize(-5, 30)
         tuples = list(zip(map(norm, cvals), colors))
         cmap = matplotlib.colors.LinearSegmentedColormap.from_list("", tuples)
 
@@ -919,9 +913,9 @@ class Warning_Time_Plotter:
 
         for filter, color, label, marker in zip(
             predict_filter,
-            ["#009ACD", "green", "purple"],
+            ["#2BCAFF", "#FF8800", "#3202B6"],
             ["TN", "FN", "FP"],
-            ["o", "^", "^"],
+            ["o", "X", "X"],
         ):
             sta_num = len(trace_info[filter])
             sta = ax_map.scatter(
