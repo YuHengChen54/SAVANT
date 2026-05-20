@@ -36,7 +36,7 @@ for model_num in model_nums:
         prediction_with_info = pd.read_csv(prediction_file)
 
         # for EQ_ID in catalog.query("year==2016 & magnitude>=5.5")["EQ_ID"]:
-        for EQ_ID in [24784, 25900]:
+        for EQ_ID in [25193, 25394, 26056, 25561, 25984]:
             event = catalog[catalog["EQ_ID"] == EQ_ID]
             event = event.assign(
                 latitude=event["lat"] + event["lat_minute"] / 60,
@@ -47,35 +47,35 @@ for model_num in model_nums:
                 print(f"Skip EQ_ID {EQ_ID}: no records in {prediction_file}")
                 continue
 
-            # fig, ax = Intensity_Plotter.plot_intensity_map(
-            #     trace_info=event_prediction,
-            #     eventmeta=event,
-            #     label_type=label_type,
-            #     true_label=event_prediction[f"answer_{label_type}"],
-            #     pred_label=event_prediction[f"predict_{label_type}"],
-            #     sec=mask_after_sec,
-            #     EQ_ID=EQ_ID,
-            #     grid_method="linear",
-            #     pad=100,
-            #     title=f"Model {model_num} | {mask_after_sec} sec intensity Map",
-            # )
-            # fig.savefig(
-            #     f"{output_path}/model{model_num}_{EQ_ID}_{mask_after_sec}sec intensity Map.png", dpi=600, bbox_inches="tight"
-            # )
-            # plt.close(fig)
+            fig, ax = Intensity_Plotter.plot_intensity_map(
+                trace_info=event_prediction,
+                eventmeta=event,
+                label_type=label_type,
+                true_label=event_prediction[f"answer_{label_type}"],
+                pred_label=event_prediction[f"predict_{label_type}"],
+                sec=mask_after_sec,
+                EQ_ID=EQ_ID,
+                grid_method="linear",
+                pad=100,
+                title=f"Model {model_num} | {mask_after_sec} sec intensity Map",
+            )
+            fig.savefig(
+                f"{output_path}/{label_type}_{model_num}_{EQ_ID}_{mask_after_sec}sec intensity Map.png", dpi=600, bbox_inches="tight"
+            )
+            plt.close(fig)
 
-            # fig, ax = Intensity_Plotter.plot_true_predicted(
-            #     y_true=event_prediction[f"answer_{label_type}"],
-            #     y_pred=event_prediction[f"predict_{label_type}"],
-            #     agg="point",
-            #     point_size=35,
-            #     target=label_type,
-            #     title=f"Model {model_num} | EQID: {EQ_ID}, mag: {event['magnitude'].values[0]}, {mask_after_sec} sec true and predict",
-            # )
-            # fig.savefig(
-            #     f"{output_path}/model{model_num}_{EQ_ID}_mag_{event['magnitude'].values[0]}_{mask_after_sec}sec true predict plot.png", dpi=450, bbox_inches="tight"
-            # )
-            # plt.close(fig)
+            fig, ax = Intensity_Plotter.plot_true_predicted(
+                y_true=event_prediction[f"answer_{label_type}"],
+                y_pred=event_prediction[f"predict_{label_type}"],
+                agg="point",
+                point_size=35,
+                target=label_type,
+                title=f"Model {model_num} | EQID: {EQ_ID}, mag: {event['magnitude'].values[0]}, {mask_after_sec} sec true and predict",
+            )
+            fig.savefig(
+                f"{output_path}/{label_type}_{model_num}_{EQ_ID}_mag_{event['magnitude'].values[0]}_{mask_after_sec}sec true predict plot.png", dpi=450, bbox_inches="tight"
+            )
+            plt.close(fig)
 
             try:
                 # Align expected columns for warning-time utilities.
