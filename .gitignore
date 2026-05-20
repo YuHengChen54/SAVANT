@@ -16,6 +16,7 @@ model_pga_pgv/*
 model_with_2_CNN/*
 model_with_a_physical_feature/*
 model_with_several_physical_feature/*
+model_validate_without_MSFE/*
 
 # 4. 資料前處理目錄：只放行 .py
 data_preprocess/*
@@ -40,6 +41,7 @@ predict_pga_pgv/*
 predict_with_2_CNN/*
 predict_with_a_physical_feature/*
 predict_with_several_physical_feature/*
+predict_validate_without_MSFE/*
 
 # 9. 系統產生的隱藏檔
 .DS_Store
