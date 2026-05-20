@@ -330,7 +330,7 @@ def train_process(
             # checkpoint
             if train_loss_epoch < -1 and (epoch + 1) % 5 == 0:
                 checkpoint_path = (
-                    f"../model_validate_without_MSFE/model{hyper_param['model_index']}_checkpoints"
+                    f"../model_with_several_physical_feature/model{hyper_param['model_index']}_checkpoints"
                 )
                 if not os.path.exists(checkpoint_path):
                     os.makedirs(checkpoint_path)
@@ -348,7 +348,7 @@ def train_process(
 
                 if trigger_times >= patience:
                     # 往前縮排測試
-                    path = "../model_validate_without_MSFE"
+                    path = "../model_with_several_physical_feature"
                     # if epoch+1 == hyper_param["num_epochs"]:
                     print(f"Early stopping! stop at epoch: {epoch+1}")
                     with open(
@@ -371,7 +371,7 @@ def train_process(
             else:
                 print("trigger 0 time")
                 trigger_times = 0
-                path = "../model_validate_without_MSFE"
+                path = "../model_with_several_physical_feature"
                 model_file = f"{path}/model{hyper_param['model_index']}_pga.pt"
                 torch.save(full_Model.state_dict(), model_file)
                 log_artifact(model_file)
@@ -386,7 +386,7 @@ def train_process(
 
 if __name__ == "__main__":
     train_data_size = 0.8
-    model_index = 0
+    model_index = 200
     num_epochs = 300
     # batch_size=16
     candidate_physical_features = ["cvaa_log1p", "Ia_log1p", "IV2_log1p", "TP_log1p"]
@@ -400,7 +400,7 @@ if __name__ == "__main__":
         print(f"physical feature combo: {physical_feature_list}")
         for chosen_intensity in intensity_list:
             thr_pga_log10, thr_pgv_log10 = resolve_minority_thresholds(chosen_intensity)
-            for loss_mode in ["none"]:
+            for loss_mode in ["MSFE"]:
                 for batch_size in [8]:
                     for LR in [5e-5]: # 5e-6 used in TT-SAM
                         for i in range(3):
@@ -482,8 +482,8 @@ if __name__ == "__main__":
                                 full_data,
                                 optimizer,
                                 hyper_param,
-                                experiment_name="SAVANT validate without MSFE",
-                                run_name=f"model {model_index} | test using epoch average loss | {loss_mode} | threshold: {chosen_intensity} | 20260514",
+                                experiment_name="SAVANT with all physical feature",
+                                run_name=f"model {model_index} | physical feature: {'+'.join(physical_feature_list)} | {loss_mode} | threshold: {chosen_intensity} | 20260420",
                                 # run_name="test"
                             )
         
