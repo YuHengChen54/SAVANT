@@ -4,12 +4,14 @@ import matplotlib.pyplot as plt
 
 import numpy as np
 import pandas as pd
+from sqlalchemy import label
 import torch
 import sklearn.metrics as metrics
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from itertools import combinations
 import sys
+
 sys.path.append("..")
 from model.CNN_Transformer_Mixtureoutput import (
     CNN,
@@ -43,7 +45,7 @@ def build_model_feature_mapping(model_start_index=None):
     """Build model_index -> physical_features mapping from training loop logic."""
     candidate_physical_features = ["cvaa_log1p", "Ia_log1p", "IV2_log1p", "TP_log1p"]
     physical_feature_combinations = []
-    for r in range(3, len(candidate_physical_features) + 1):
+    for r in range(4, len(candidate_physical_features) + 1):
         physical_feature_combinations.extend(combinations(candidate_physical_features, r))
     
     model_index = model_start_index
@@ -56,7 +58,7 @@ def build_model_feature_mapping(model_start_index=None):
             for loss_mode in ["MSFE"]:
                 for batch_size in [8]:
                     for LR in [5e-5]:
-                        for i in range(5):
+                        for i in range(3):
                             model_index += 1
                             model_to_features[model_index] = {
                                 "physical_feature": physical_feature_list,
@@ -69,7 +71,7 @@ def build_model_feature_mapping(model_start_index=None):
     return model_to_features
 
 
-model_start_index = 72  # Start index used in multi_station_training.py
+model_start_index = 0  # Start index used in multi_station_training.py
 model_to_features = build_model_feature_mapping(model_start_index=model_start_index)
 
 # =========== Execution mode ===========
@@ -83,7 +85,7 @@ if run_all_models:
     print(f"Evaluating all mapped models: {models_to_test}")
 else:
     # Evaluate only the specified model number.
-    model_num = 73  # Change this to the model index you want to test.
+    model_num = 96  # Change this to the model index you want to test.
     if model_num not in model_to_features:
         print(f"Warning: model_num {model_num} is not in the mapped training list.")
         print(f"Available model_num range: {min(model_to_features.keys())} - {max(model_to_features.keys())}")
@@ -161,8 +163,14 @@ for num in models_to_test:
             for j, sample in tqdm(enumerate(loader)):
                 # metadata
                 picks = sample["p_picks"].flatten().numpy().tolist()
+                pga_time = sample[f"pga_time"].flatten().numpy().tolist()
+                pgv_time = sample[f"pgv_time"].flatten().numpy().tolist()
                 P_picks.extend(picks)
                 P_picks.extend([np.nan] * (25 - len(picks)))
+                Pga_time.extend(pga_time)
+                Pga_time.extend([np.nan] * (25 - len(pga_time)))
+                Pgv_time.extend(pgv_time)
+                Pgv_time.extend([np.nan] * (25 - len(pgv_time)))
                 lat = sample["target"][:, :, 0].flatten().tolist()
                 lon = sample["target"][:, :, 1].flatten().tolist()
                 elev = sample["target"][:, :, 2].flatten().tolist()
@@ -198,6 +206,8 @@ for num in models_to_test:
         output = {
             "EQ_ID": EQ_ID,
             "p_picks": P_picks,
+            "pga_time": Pga_time,
+            "pgv_time": Pgv_time,
             "latitude": Lat,
             "longitude": Lon,
             "elevation": Elev,
@@ -215,6 +225,9 @@ for num in models_to_test:
             f"../predict_with_several_physical_feature/model_test_{num}/model {num} {mask_after_sec} sec prediction_vel.csv", index=False
         )
 
+        # # For debugging: load the saved CSV and verify it matches the original output_df.
+        # output_df = pd.read_csv(f"../predict_validate_without_MSFE/model_test_{num}/model {num} {mask_after_sec} sec prediction_vel.csv")
+        
         # Plot PGA performance.
         fig_pga, ax_pga = Intensity_Plotter.plot_true_predicted(
             y_true=output_df["answer_pga"],
