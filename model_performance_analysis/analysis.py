@@ -557,6 +557,8 @@ class Intensity_Plotter:
         # Compute RMSE and MAE, and show them on the top-left of the plot.
         rmse = np.sqrt(metrics.mean_squared_error(y_true, y_pred_point))
         mae = metrics.mean_absolute_error(y_true, y_pred_point)
+        r2 = metrics.r2_score(y_true, y_pred_point)
+        print(f"{target} R²={r2:.3f}")
         ax.text(
             limits[0] + 0.085,
             limits[-1] - 0.08,
@@ -849,6 +851,7 @@ class Warning_Time_Plotter:
         title=None,
         Pwave_vel=6.5,
         Swave_vel=3.5,
+        latency_sec=4,
     ):
         true_warn_filter = (trace_info["predict"] > label_threshold) & (
             (trace_info["answer"] > label_threshold)
@@ -886,7 +889,7 @@ class Warning_Time_Plotter:
         sta_num = len(trace_info[true_warn_filter])
         warning_time = trace_info[true_warn_filter][
             f"{label_type}_time_window"
-        ] / 200 - (sec + 5)
+        ] / 200 - (sec + 5 + latency_sec)
 
         # 固定 colorbar 範圍: -5 到 35 秒
         cvals = [-5, -0.001,  0, 15, 30]
@@ -1023,10 +1026,11 @@ class Warning_Time_Plotter:
         label_type="pga",
         sampling_rate=200,
         first_pick_sec=5,
+        latency_sec=4,
     ):
         warning_time_filter = (
             prediction[f"{label_type}_time_window"]
-            > (first_pick_sec + mask_after_sec) * sampling_rate
+            > (first_pick_sec + mask_after_sec + latency_sec) * sampling_rate
         )
         magnitude_filter = prediction["magnitude"] >= warning_mag_threshold
 
@@ -1034,7 +1038,7 @@ class Warning_Time_Plotter:
 
         warning_time = (
             prediction_for_warning[f"{label_type}_time_window"]
-            - ((first_pick_sec + mask_after_sec) * sampling_rate)
+            - ((first_pick_sec + mask_after_sec + latency_sec) * sampling_rate)
         ) / sampling_rate
         prediction_for_warning.insert(5, "warning_time (sec)", warning_time)
 
@@ -1093,6 +1097,7 @@ class Warning_Time_Plotter:
         label_threshold=None,
         sampling_rate=200,
         first_pick_sec=5,
+        latency_sec=4,
     ):
         EQ_ID = int(event_prediction["EQ_ID"].values[0])
         fig, ax = plt.subplots()
@@ -1102,6 +1107,7 @@ class Warning_Time_Plotter:
         pga_time = (
             true_warning_prediction[f"{label_type}_time_window"] / sampling_rate
             - first_pick_sec
+            - latency_sec
         )
         pick_time = true_warning_prediction["p_picks"] / sampling_rate - first_pick_sec
         ax.scatter(
