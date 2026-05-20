@@ -134,7 +134,7 @@ def train_process(
         valid_loader = DataLoader(
             dataset=val_dataset,
             batch_size=hyper_param["batch_size"],
-            shuffle=True,
+            shuffle=False,
             pin_memory=True,
             num_workers=5,
             drop_last=True,
@@ -156,6 +156,9 @@ def train_process(
             print("--------------------train_start--------------------")
             # unified imbalance mode for both PGA & PGV
             mode = hyper_param.get("imbalance_mode", "none").upper()
+            full_Model.train()
+            epoch_train_loss = 0.0
+            num_train_batches = 0
             for sample in tqdm(train_loader):  # training
                 optimizer.zero_grad()
                 weight_pga, sigma_pga, mu_pga, weight_pgv, sigma_pgv, mu_pgv = full_Model(sample)
@@ -233,14 +236,22 @@ def train_process(
                 train_loss = loss_pga_new + loss_pgv_new
                 train_loss.backward()
                 optimizer.step()
-            print("train_loss", train_loss)
-            training_loss.append(train_loss.data)
+                epoch_train_loss += train_loss.item()
+                num_train_batches += 1
 
+            train_loss_epoch = epoch_train_loss / max(num_train_batches, 1)
+            print("train_loss", train_loss_epoch)
+            training_loss.append(train_loss_epoch)
+
+            epoch_val_loss = 0.0
+            num_val_batches = 0
             for sample in tqdm(valid_loader):  # validation
                 weight_pga, sigma_pga, mu_pga, weight_pgv, sigma_pgv, mu_pgv = full_Model(sample)
 
+                batch_size_now = sample["pga_label"].shape[0]
+
                 # PGA loss
-                pga_label = sample["pga_label"].reshape(hyper_param["batch_size"], full_data.label_target, 1).cuda()
+                pga_label = sample["pga_label"].reshape(batch_size_now, full_data.label_target, 1).cuda()
                 mask_pga = ~pga_label.eq(0)
                 pga_label_masked = torch.masked_select(pga_label, mask_pga).reshape(-1, 1)
                 weight_pga_masked = torch.masked_select(weight_pga, mask_pga).reshape(-1, num_of_gaussian)
@@ -248,34 +259,32 @@ def train_process(
                 mu_pga_masked = torch.masked_select(mu_pga, mask_pga).reshape(-1, num_of_gaussian)
                 loss_pga = torch.mean(torch.sum(
                     weight_pga_masked * gaussian_loss(mu_pga_masked, pga_label_masked, sigma_pga_masked),
-                    axis=1
+                    dim=1,
                 ))
-                # Optional MFE/MSFE for PGA (validation)
+
                 loss_all_pga = torch.sum(
-                    weight_pga_masked * gaussian_loss(mu_pga_masked, pga_label_masked, sigma_pga_masked), dim=1
+                    weight_pga_masked * gaussian_loss(mu_pga_masked, pga_label_masked, sigma_pga_masked),
+                    dim=1,
                 )
-                # build threshold on validation tensor/device
                 thresh_pga_val = hyper_param.get("minority_threshold_pga", math.log10(0.08))
                 if not isinstance(thresh_pga_val, torch.Tensor):
                     thresh_pga_val = torch.tensor(thresh_pga_val, device=pga_label_masked.device, dtype=pga_label_masked.dtype)
-                min_mask_pga = (pga_label_masked.view(-1) >= thresh_pga_val)
+                min_mask_pga = pga_label_masked.view(-1) >= thresh_pga_val
                 maj_mask_pga = ~min_mask_pga
                 vFNE_pga = loss_all_pga[min_mask_pga].mean() if torch.any(min_mask_pga) else loss_all_pga.new_tensor(0.0)
                 vFPE_pga = loss_all_pga[maj_mask_pga].mean() if torch.any(maj_mask_pga) else loss_all_pga.new_tensor(0.0)
                 if mode == "MFE":
                     loss_pga_new = vFPE_pga + vFNE_pga
                 elif mode == "MSFE":
-                    # 加上偏移確保正值，不影響訓練效果
-                    offset = 15.0  # 可以根據您觀察到的最小 loss 值調整
+                    offset = 15.0
                     vFPE_shifted = vFPE_pga + offset
                     vFNE_shifted = vFNE_pga + offset
-                    loss_pga_new = 0.5 * (vFPE_shifted ** 2 + vFNE_shifted ** 2)
-                    loss_pga_new /= 100  # scale down to avoid overflow
+                    loss_pga_new = 0.5 * (vFPE_shifted ** 2 + vFNE_shifted ** 2) / 100
                 else:
                     loss_pga_new = loss_pga
 
                 # PGV loss (dataset must return sample["pgv_label"] with same shape)
-                pgv_label = sample["pgv_label"].reshape(hyper_param["batch_size"], full_data.label_target, 1).cuda()
+                pgv_label = sample["pgv_label"].reshape(batch_size_now, full_data.label_target, 1).cuda()
                 mask_pgv = ~pgv_label.eq(0)
                 pgv_label_masked = torch.masked_select(pgv_label, mask_pgv).reshape(-1, 1)
                 weight_pgv_masked = torch.masked_select(weight_pgv, mask_pgv).reshape(-1, num_of_gaussian)
@@ -283,44 +292,45 @@ def train_process(
                 mu_pgv_masked = torch.masked_select(mu_pgv, mask_pgv).reshape(-1, num_of_gaussian)
                 loss_pgv = torch.mean(torch.sum(
                     weight_pgv_masked * gaussian_loss(mu_pgv_masked, pgv_label_masked, sigma_pgv_masked),
-                    axis=1
+                    dim=1,
                 ))
-                # Optional MFE/MSFE for PGV (validation)
+
                 loss_all_pgv = torch.sum(
-                    weight_pgv_masked * gaussian_loss(mu_pgv_masked, pgv_label_masked, sigma_pgv_masked), dim=1
+                    weight_pgv_masked * gaussian_loss(mu_pgv_masked, pgv_label_masked, sigma_pgv_masked),
+                    dim=1,
                 )
                 thresh_pgv_val = hyper_param.get("minority_threshold_pgv", math.log10(0.019))
                 if not isinstance(thresh_pgv_val, torch.Tensor):
                     thresh_pgv_val = torch.tensor(thresh_pgv_val, device=pgv_label_masked.device, dtype=pgv_label_masked.dtype)
-                min_mask_pgv = (pgv_label_masked.view(-1) >= thresh_pgv_val)
+                min_mask_pgv = pgv_label_masked.view(-1) >= thresh_pgv_val
                 maj_mask_pgv = ~min_mask_pgv
                 vFNE_pgv = loss_all_pgv[min_mask_pgv].mean() if torch.any(min_mask_pgv) else loss_all_pgv.new_tensor(0.0)
                 vFPE_pgv = loss_all_pgv[maj_mask_pgv].mean() if torch.any(maj_mask_pgv) else loss_all_pgv.new_tensor(0.0)
                 if mode == "MFE":
                     loss_pgv_new = vFPE_pgv + vFNE_pgv
                 elif mode == "MSFE":
-                    # 加上偏移確保正值，不影響訓練效果
-                    offset = 15.0  
+                    offset = 15.0
                     vFPE_shifted = vFPE_pgv + offset
                     vFNE_shifted = vFNE_pgv + offset
-                    loss_pgv_new = 0.5 * (vFPE_shifted ** 2 + vFNE_shifted ** 2)
-                    loss_pgv_new /= 100  # scale down to avoid overflow
+                    loss_pgv_new = 0.5 * (vFPE_shifted ** 2 + vFNE_shifted ** 2) / 100
                 else:
                     loss_pgv_new = loss_pgv
 
-                # combine losses (use new ones if enabled)
                 val_loss = loss_pga_new + loss_pgv_new
+                epoch_val_loss += val_loss.item()
+                num_val_batches += 1
 
-            print("val_loss", val_loss)
-            validation_loss.append(val_loss.data)
+            val_loss_epoch = epoch_val_loss / max(num_val_batches, 1)
+            print("val_loss", val_loss_epoch)
+            validation_loss.append(val_loss_epoch)
             log_metrics(
-                {"train_loss": train_loss.item(), "val_loss": val_loss.item()},
+                {"train_loss": train_loss_epoch, "val_loss": val_loss_epoch},
                 step=epoch + 1,
             )
             # checkpoint
-            if train_loss.data < -1 and (epoch + 1) % 5 == 0:
+            if train_loss_epoch < -1 and (epoch + 1) % 5 == 0:
                 checkpoint_path = (
-                    f"../model_with_several_physical_feature/model{hyper_param['model_index']}_checkpoints"
+                    f"../model_validate_without_MSFE/model{hyper_param['model_index']}_checkpoints"
                 )
                 if not os.path.exists(checkpoint_path):
                     os.makedirs(checkpoint_path)
@@ -329,7 +339,7 @@ def train_process(
                     f"{checkpoint_path}/epoch{epoch+1}_model.pt",
                 )
             # epoch early stop:
-            current_loss = val_loss.data
+            current_loss = val_loss_epoch
             if the_last_loss < -1:  ### 測試比較少訓練的時候改這裡 原本是-1
                 patience = 15  ### 測試比較少訓練的時候改這裡 原本是 15
             if current_loss > the_last_loss:  ### 測試比較少訓練的時候改這裡(註解掉這一行)
@@ -338,7 +348,7 @@ def train_process(
 
                 if trigger_times >= patience:
                     # 往前縮排測試
-                    path = "../model_with_several_physical_feature"
+                    path = "../model_validate_without_MSFE"
                     # if epoch+1 == hyper_param["num_epochs"]:
                     print(f"Early stopping! stop at epoch: {epoch+1}")
                     with open(
@@ -361,7 +371,7 @@ def train_process(
             else:
                 print("trigger 0 time")
                 trigger_times = 0
-                path = "../model_with_several_physical_feature"
+                path = "../model_validate_without_MSFE"
                 model_file = f"{path}/model{hyper_param['model_index']}_pga.pt"
                 torch.save(full_Model.state_dict(), model_file)
                 log_artifact(model_file)
@@ -369,19 +379,19 @@ def train_process(
             the_last_loss = current_loss
         print(
             "Train Epoch: {}/{} Traing_Loss: {} Val_Loss: {}".format(
-                epoch + 1, hyper_param["num_epochs"], train_loss.data, val_loss.data
+                epoch + 1, hyper_param["num_epochs"], train_loss_epoch, val_loss_epoch
             )
         )
 
 
 if __name__ == "__main__":
     train_data_size = 0.8
-    model_index = 72
+    model_index = 0
     num_epochs = 300
     # batch_size=16
     candidate_physical_features = ["cvaa_log1p", "Ia_log1p", "IV2_log1p", "TP_log1p"]
     physical_feature_combinations = []
-    for r in range(3, len(candidate_physical_features) + 1):
+    for r in range(4, len(candidate_physical_features) + 1):
         physical_feature_combinations.extend(combinations(candidate_physical_features, r))
 
     intensity_list = ["IV"]
@@ -390,10 +400,10 @@ if __name__ == "__main__":
         print(f"physical feature combo: {physical_feature_list}")
         for chosen_intensity in intensity_list:
             thr_pga_log10, thr_pgv_log10 = resolve_minority_thresholds(chosen_intensity)
-            for loss_mode in ["MSFE"]:
+            for loss_mode in ["none"]:
                 for batch_size in [8]:
                     for LR in [5e-5]: # 5e-6 used in TT-SAM
-                        for i in range(5):
+                        for i in range(3):
                             model_index += 1
                             hyper_param = {
                                 "model_index": model_index,
@@ -472,8 +482,8 @@ if __name__ == "__main__":
                                 full_data,
                                 optimizer,
                                 hyper_param,
-                                experiment_name="SAVANT with all physical feature",
-                                run_name=f"model {model_index} | physical feature: {'+'.join(physical_feature_list)} | {loss_mode} | threshold: {chosen_intensity} | 20260420",
+                                experiment_name="SAVANT validate without MSFE",
+                                run_name=f"model {model_index} | test using epoch average loss | {loss_mode} | threshold: {chosen_intensity} | 20260514",
                                 # run_name="test"
                             )
         
